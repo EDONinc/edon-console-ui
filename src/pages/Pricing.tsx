@@ -83,6 +83,17 @@ export default function Pricing() {
       .catch(() => {});
   }, []);
 
+  const safeRedirect = (url: string) => {
+    try {
+      const parsed = new URL(url);
+      if (parsed.hostname === 'checkout.stripe.com' || parsed.hostname === 'checkout.edoncore.com' || parsed.hostname === 'billing.stripe.com') {
+        window.location.href = url;
+      }
+    } catch {
+      // invalid URL, do nothing
+    }
+  };
+
   async function handleUpgrade(plan: PlanInfo) {
     if (plan.contact_us) {
       window.location.href = "mailto:sales@edoncore.com?subject=Enterprise Inquiry";
@@ -92,7 +103,7 @@ export default function Pricing() {
     try {
       const result = await edonApi.checkout(plan.slug);
       if (result.checkout_url) {
-        window.location.href = result.checkout_url;
+        safeRedirect(result.checkout_url);
       } else {
         alert(result.message || "Contact sales@edoncore.com to upgrade.");
       }
