@@ -23,7 +23,12 @@ const getBaseUrl = () => {
 const getToken = () => {
   if (typeof window === 'undefined') return '';
 
-  const stored = (localStorage.getItem('edon_token') || '').trim();
+  const stored = (
+    localStorage.getItem('edon_token') ||
+    localStorage.getItem('edon_session_token') ||
+    localStorage.getItem('edon_api_key') ||
+    ''
+  ).trim();
   if (stored) return stored;
 
   if (import.meta.env.MODE !== 'production') {

@@ -6,12 +6,12 @@ export const AccessGate = () => {
     <div className="min-h-screen bg-background text-foreground flex items-center justify-center px-6">
       <div className="w-full max-w-lg rounded-2xl border border-white/10 bg-white/5 p-8 shadow-xl">
         <p className="text-xs uppercase tracking-widest text-muted-foreground mb-3">
-          EDON Console
+          EDON Governance Console
         </p>
-        <h1 className="text-2xl font-semibold mb-3">Sign-in required</h1>
+        <h1 className="text-2xl font-semibold mb-3">Access key required</h1>
         <p className="text-sm text-muted-foreground leading-relaxed mb-6">
-          This console is available to subscribed users. Please open it from your EDON
-          account so your connection key is securely passed through.
+          Sign in at edoncore.com to open this console with your access key automatically
+          passed through — or enter your key manually below.
         </p>
         <div className="flex flex-col sm:flex-row gap-3">
           <a href="https://edoncore.com/login">

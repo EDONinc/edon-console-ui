@@ -6,18 +6,18 @@ import { Link } from 'react-router-dom';
 
 const policyModes = {
   'personal-safe': {
-    label: 'Personal Safe',
-    description: 'Conservative mode for personal use',
+    label: 'Safe Mode',
+    description: 'High-oversight mode — every action is reviewed before execution',
     color: 'from-emerald-500 to-emerald-700',
   },
   'work-safe': {
-    label: 'Work Safe',
-    description: 'Balanced mode for work environments',
+    label: 'Business Mode',
+    description: 'Balanced autonomy — low-risk actions proceed, sensitive ones are gated',
     color: 'from-sky-400 to-sky-600',
   },
   'ops': {
-    label: 'Operations',
-    description: 'Flexible mode for business workflows',
+    label: 'Autonomy Mode',
+    description: 'Full speed — agent acts freely within your defined policy boundaries',
     color: 'from-amber-500 to-orange-600',
   },
 };
@@ -45,7 +45,7 @@ export function PolicyModeCard() {
       className="glass-card p-6"
     >
       <div className="flex items-center justify-between mb-4">
-        <h3 className="font-semibold">Safety Mode</h3>
+        <h3 className="font-semibold">Governance Mode</h3>
         <Link to="/policies" className="text-primary text-sm flex items-center gap-1 hover:underline">
           Manage <ChevronRight className="w-4 h-4" />
         </Link>
@@ -61,7 +61,7 @@ export function PolicyModeCard() {
 
       <div className="space-y-3">
         <div className="flex items-center justify-between text-sm">
-          <span className="text-muted-foreground">Safety Version</span>
+          <span className="text-muted-foreground">Policy Version</span>
           <Badge variant="outline" className="font-mono">{policyVersion}</Badge>
         </div>
         <div className="flex items-center justify-between text-sm">

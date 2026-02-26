@@ -254,7 +254,7 @@ export default function Decisions() {
                   <TableHead className="text-muted-foreground">Agent ID</TableHead>
                   <TableHead className="text-muted-foreground">Reason</TableHead>
                   <TableHead className="text-muted-foreground">Intent ID</TableHead>
-                  <TableHead className="text-muted-foreground">Safety Version</TableHead>
+                  <TableHead className="text-muted-foreground">Policy Version</TableHead>
                   <TableHead className="text-muted-foreground text-right">Latency</TableHead>
                 </TableRow>
               </TableHeader>

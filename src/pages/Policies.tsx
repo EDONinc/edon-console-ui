@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Shield, ShieldCheck, ShieldAlert, Zap, Check, ChevronRight, RefreshCcw } from 'lucide-react';
+import { Shield, ShieldCheck, ShieldAlert, Zap, Check, ChevronRight, RefreshCcw, Lock, Briefcase, Bot } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { edonApi, isMockMode, getToken } from '@/lib/api';
 
@@ -66,6 +66,45 @@ const gradientMap: Record<string, string> = {
   'ops_admin': 'from-amber-500/20 to-orange-600/10',
   'clawdbot_safe': 'from-blue-500/20 to-blue-700/10',
 };
+
+const GOVERNANCE_MODES = [
+  {
+    key: 'safe',
+    packName: 'personal_safe',
+    title: 'Safe Mode',
+    icon: Lock,
+    gradient: 'from-emerald-500/20 to-emerald-700/10',
+    border: 'border-emerald-500/30',
+    what: 'Automatically stops high-risk actions before they execute — no surprises, no manual review needed.',
+    scope: 'Low-risk tasks run uninterrupted. Anything that could cause real-world harm is blocked before it fires.',
+    escalation: 'Immediate alert to your admin or team when a policy boundary is crossed.',
+    useCase: 'The default for new deployments. Ship fast without worrying about your agents going off-script.',
+  },
+  {
+    key: 'business',
+    packName: 'work_safe',
+    title: 'Business Mode',
+    icon: Briefcase,
+    gradient: 'from-sky-500/20 to-sky-700/10',
+    border: 'border-sky-500/30',
+    what: 'Enables automation across business workflows while maintaining a clear chain of responsibility.',
+    scope: 'Business operations run freely. Financial, access, and data-sensitive actions require explicit approval.',
+    escalation: 'Escalated to team lead or audit log — full accountability without slowing your operations.',
+    useCase: 'Built for ops teams that need velocity but cannot afford compliance gaps.',
+  },
+  {
+    key: 'autonomy',
+    packName: 'ops_admin',
+    title: 'Autonomy Mode',
+    icon: Bot,
+    gradient: 'from-amber-500/20 to-orange-600/10',
+    border: 'border-amber-500/30',
+    what: 'EDON runs continuously — taking action, completing tasks, escalating only when a true safety threshold is crossed.',
+    scope: 'Only demonstrably unsafe patterns are blocked. Everything else executes without interruption.',
+    escalation: 'Silent by design. Only critical safety violations surface to your team.',
+    useCase: 'For high-trust environments, always-on automation pipelines, and enterprise-scale deployments.',
+  },
+] as const;
 
 export default function Policies() {
   const [packs, setPacks] = useState<PolicyPackWithMeta[]>([]);
@@ -416,7 +455,85 @@ export default function Policies() {
         >
           <div className="mb-8">
             <h1 className="text-2xl font-bold mb-1">Safety Packs</h1>
-            <p className="text-muted-foreground">Configure assistant behavior with safety presets</p>
+            <p className="text-muted-foreground">Define how much autonomy your agents have — from cautious to always-on.</p>
+          </div>
+
+          {/* Governance mode cards */}
+          <div className="mb-8">
+            <h2 className="text-lg font-semibold mb-4">Governance mode</h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {GOVERNANCE_MODES.map((mode) => {
+                const Icon = mode.icon;
+                const isActive = activePolicy === mode.packName;
+                return (
+                  <motion.div
+                    key={mode.key}
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className={`relative rounded-xl border ${mode.border} bg-white/5 overflow-hidden transition ${
+                      isActive ? 'ring-2 ring-primary' : 'hover:bg-white/10'
+                    }`}
+                  >
+                    <div className={`absolute inset-0 bg-gradient-to-br ${mode.gradient} opacity-40 pointer-events-none`} />
+                    <div className="relative z-10 p-5">
+                      <div className="flex items-start justify-between gap-3 mb-4">
+                        <div className="p-2.5 rounded-lg bg-white/10">
+                          <Icon className="w-5 h-5 text-foreground/90" />
+                        </div>
+                        {isActive && (
+                          <Badge className="bg-primary/20 text-primary border-primary/30 text-xs">
+                            <Check className="w-3 h-3 mr-1" />
+                            Active
+                          </Badge>
+                        )}
+                      </div>
+                      <h3 className="text-lg font-semibold mb-3">{mode.title}</h3>
+                      <dl className="space-y-2.5 text-sm text-muted-foreground mb-5">
+                        <div>
+                          <dt className="text-xs uppercase tracking-wider text-foreground/70 mb-0.5">What it does</dt>
+                          <dd>{mode.what}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-xs uppercase tracking-wider text-foreground/70 mb-0.5">Scope</dt>
+                          <dd>{mode.scope}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-xs uppercase tracking-wider text-foreground/70 mb-0.5">Escalation</dt>
+                          <dd>{mode.escalation}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-xs uppercase tracking-wider text-foreground/70 mb-0.5">Use case</dt>
+                          <dd>{mode.useCase}</dd>
+                        </div>
+                      </dl>
+                      <Button
+                        onClick={() => activatePolicy(mode.packName)}
+                        disabled={isActive || activating === mode.packName}
+                        className="w-full gap-2"
+                        variant={isActive ? 'outline' : 'default'}
+                      >
+                        {activating === mode.packName ? (
+                          <>
+                            <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                            Applying...
+                          </>
+                        ) : isActive ? (
+                          <>
+                            <Check className="w-4 h-4" />
+                            Currently Active
+                          </>
+                        ) : (
+                          <>
+                            Set {mode.title}
+                            <ChevronRight className="w-4 h-4" />
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </div>
           </div>
 
           {/* Current Policy Banner */}
@@ -457,7 +574,7 @@ export default function Policies() {
               <div>
                 <h2 className="text-lg font-semibold">Custom Policies</h2>
                 <p className="text-sm text-muted-foreground">
-                  Pro users can create 1 custom policy. Pro+ users can create up to 10.
+                  Tailor governance rules to your exact use case. Starter unlocks 1 custom pack; Business unlocks up to 10.
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -568,7 +685,7 @@ export default function Policies() {
                     isActive ? 'ring-2 ring-primary' : ''
                   }`}
                 >
-                  <div className={`absolute inset-0 bg-gradient-to-br ${policy.bgGradient} opacity-50`} />
+                  <div className={`absolute inset-0 bg-gradient-to-br ${policy.bgGradient} opacity-40`} />
                   
                   <div className="relative">
                     {/* Header */}

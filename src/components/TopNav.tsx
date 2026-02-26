@@ -1,19 +1,16 @@
 import { NavLink, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ShieldCheck, Gauge, ListChecks, FileSearch, Settings2, Wifi, WifiOff, PlugZap, KeyRound, Sparkles, MessageSquare } from 'lucide-react';
+import { ShieldCheck, Gauge, ListChecks, FileSearch, Settings2, KeyRound, CreditCard } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { edonApi } from '@/lib/api';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { ChatSidebar } from '@/components/ChatSidebar';
 
 const navItems = [
   { to: '/', label: 'Dashboard', icon: Gauge },
-  { to: '/quickstart', label: 'Quickstart', icon: Sparkles },
   { to: '/decisions', label: 'Decisions', icon: ListChecks },
   { to: '/audit', label: 'Audit', icon: FileSearch },
   { to: '/policies', label: 'Policies', icon: ShieldCheck },
-  { to: '/integrations', label: 'Integrations', icon: PlugZap },
+  { to: '/pricing', label: 'Pricing', icon: CreditCard },
   { to: '/settings', label: 'Settings', icon: Settings2 },
 ];
 
@@ -21,7 +18,6 @@ export function TopNav() {
   const location = useLocation();
   const [isConnected, setIsConnected] = useState(true);
   const [hasToken, setHasToken] = useState(() => typeof window !== 'undefined' && !!localStorage.getItem('edon_token'));
-  const [chatOpen, setChatOpen] = useState(false);
 
   useEffect(() => {
     const checkConnection = async () => {
@@ -42,10 +38,7 @@ export function TopNav() {
     };
     window.addEventListener('storage', handleStorageChange);
     window.addEventListener('edon-auth-updated', handleStorageChange as EventListener);
-    const handleChatOpen = () => setChatOpen(true);
-    window.addEventListener('edon-chat-open', handleChatOpen as EventListener);
-    window.addEventListener('edon-chat-command', handleChatOpen as EventListener);
-    
+
     const interval = setInterval(() => {
       checkConnection();
       setHasToken(typeof window !== 'undefined' && !!localStorage.getItem('edon_token'));
@@ -55,8 +48,6 @@ export function TopNav() {
       clearInterval(interval);
       window.removeEventListener('storage', handleStorageChange);
       window.removeEventListener('edon-auth-updated', handleStorageChange as EventListener);
-      window.removeEventListener('edon-chat-open', handleChatOpen as EventListener);
-      window.removeEventListener('edon-chat-command', handleChatOpen as EventListener);
     };
   }, []);
 
@@ -70,7 +61,10 @@ export function TopNav() {
         <div className="container mx-auto px-6 py-4">
           <div className="flex items-center justify-between gap-6">
             {/* Wordmark */}
-            <div className="flex items-center">
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/15 border border-primary/25 shrink-0">
+                <ShieldCheck className="w-4 h-4 text-primary" />
+              </div>
               <span className="edon-brand text-lg font-semibold tracking-[0.3em] text-foreground/90">
                 EDON
               </span>
@@ -103,38 +97,28 @@ export function TopNav() {
             </nav>
 
             {/* Status Badges */}
-            <div className="flex items-center gap-3">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="border border-white/10 bg-white/5 text-foreground/80 hover:text-foreground"
-                onClick={() => setChatOpen(true)}
-                aria-label="Open agent chat sidebar"
-              >
-                <MessageSquare className="h-4 w-4" />
-              </Button>
+            <div className="flex items-center gap-2">
               {hasToken && (
-                <Badge variant="outline" className="border-cyan-500/50 text-cyan-300 bg-cyan-500/10 flex items-center gap-1.5">
+                <Badge variant="outline" className="border-sky-500/40 text-sky-300 bg-sky-500/10 flex items-center gap-1.5 text-xs">
                   <KeyRound className="w-3 h-3" />
-                  Signed in
+                  <span className="hidden sm:inline">Signed in</span>
                 </Badge>
               )}
               <Badge
                 variant="outline"
-                className={`flex items-center gap-1.5 ${
+                className={`flex items-center gap-1.5 text-xs ${
                   isConnected
-                    ? 'border-emerald-500/50 text-emerald-400 bg-emerald-500/10'
-                    : 'border-red-500/50 text-red-400 bg-red-500/10'
+                    ? 'border-emerald-500/40 text-emerald-400 bg-emerald-500/10'
+                    : 'border-red-500/40 text-red-400 bg-red-500/10'
                 }`}
               >
-                {isConnected ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
-                {isConnected ? 'Connected' : 'Disconnected'}
+                <span className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-emerald-400' : 'bg-red-400'}`} />
+                <span className="hidden sm:inline">{isConnected ? 'Live' : 'Offline'}</span>
               </Badge>
             </div>
           </div>
         </div>
       </motion.header>
-      <ChatSidebar open={chatOpen} onOpenChange={setChatOpen} />
     </>
   );
 }

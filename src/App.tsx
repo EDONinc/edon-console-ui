@@ -10,11 +10,10 @@ import Dashboard from "./pages/Dashboard";
 import Decisions from "./pages/Decisions";
 import Audit from "./pages/Audit";
 import Policies from "./pages/Policies";
-import Integrations from "./pages/Integrations";
 import Settings from "./pages/Settings";
+import Pricing from "./pages/Pricing";
 import NotFound from "./pages/NotFound";
 import { AccessGate } from "@/components/AccessGate";
-import Quickstart from "./pages/Quickstart";
 
 const queryClient = new QueryClient();
 
@@ -47,19 +46,18 @@ const AppRoutes = () => {
     };
   }, [location.pathname]);
 
-  if (!hasToken && location.pathname !== "/settings" && location.pathname !== "/quickstart") {
+  if (!hasToken && location.pathname !== "/settings" && location.pathname !== "/quickstart" && location.pathname !== "/pricing") {
     return <AccessGate />;
   }
 
   return (
     <Routes>
       <Route path="/" element={<Dashboard />} />
-      <Route path="/quickstart" element={<Quickstart />} />
       <Route path="/decisions" element={<Decisions />} />
       <Route path="/audit" element={<Audit />} />
       <Route path="/policies" element={<Policies />} />
-      <Route path="/integrations" element={<Integrations />} />
       <Route path="/settings" element={<Settings />} />
+      <Route path="/pricing" element={<Pricing />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );
@@ -99,6 +97,7 @@ const App = () => {
 
     if (safeToken) {
       localStorage.setItem("edon_token", safeToken);
+      localStorage.setItem("edon_session_token", safeToken);
       localStorage.setItem("edon_mock_mode", "false");
     }
 

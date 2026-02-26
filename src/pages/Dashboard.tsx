@@ -10,9 +10,6 @@ import { TopReasonsChart } from '@/components/charts/TopReasonsChart';
 import { PolicyModeCard } from '@/components/PolicyModeCard';
 import { edonApi, Decision } from '@/lib/api';
 import { detectCapabilities, type CapabilityKey } from '@/lib/capabilities';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Link } from 'react-router-dom';
 
 export default function Dashboard() {
   const [metrics, setMetrics] = useState<{
@@ -26,7 +23,6 @@ export default function Dashboard() {
   const [capabilities, setCapabilities] = useState<Record<CapabilityKey, boolean> | null>(null);
   const [selectedDecision, setSelectedDecision] = useState<Decision | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [planName, setPlanName] = useState("pro");
 
   useEffect(() => {
     const baseUrl = (typeof window !== 'undefined' && localStorage.getItem('edon_api_base')) || '';
@@ -36,14 +32,6 @@ export default function Dashboard() {
     } else {
       setCapabilities({ timeseries: false, blockReasons: false });
     }
-  }, []);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const readPlan = () => setPlanName(localStorage.getItem('edon_plan') || 'pro');
-    readPlan();
-    window.addEventListener('storage', readPlan);
-    return () => window.removeEventListener('storage', readPlan);
   }, []);
 
   useEffect(() => {
@@ -73,8 +61,19 @@ export default function Dashboard() {
       <TopNav />
       
       <main className="container mx-auto px-6 py-8">
+        {/* Page Header */}
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4 }}
+          className="mb-8"
+        >
+          <h1 className="text-2xl font-bold mb-1">Dashboard</h1>
+          <p className="text-sm text-muted-foreground">Real-time governance overview</p>
+        </motion.div>
+
         {/* KPI Cards */}
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8"
@@ -110,30 +109,6 @@ export default function Dashboard() {
             delay={3}
           />
         </motion.div>
-
-        {/* Quickstart */}
-        <Card className="glass-card mb-8">
-          <CardHeader>
-            <div className="flex items-center justify-between gap-3">
-              <CardTitle>Quickstart</CardTitle>
-              <span className="text-xs uppercase tracking-widest text-muted-foreground">Plan: {planName}</span>
-            </div>
-          </CardHeader>
-          <CardContent className="grid md:grid-cols-[1.5fr_1fr] gap-6 text-sm text-muted-foreground">
-            <div className="space-y-3">
-              <div>1) Pick your AI model</div>
-              <div>2) Add LLM + agent tokens</div>
-              <div>3) Connect a channel (Slack, email, API)</div>
-              <div>4) Choose safety mode</div>
-              <div>5) Send a sample command</div>
-            </div>
-            <div className="flex flex-col gap-3">
-              <Link to="/quickstart">
-                <Button className="rounded-full w-full">Open Quickstart</Button>
-              </Link>
-            </div>
-          </CardContent>
-        </Card>
 
         {/* Main Content Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">

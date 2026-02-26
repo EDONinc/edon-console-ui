@@ -65,7 +65,7 @@ export function DecisionDrawer({ decision, open, onClose }: DecisionDrawerProps)
                   <span>{decision.latency_ms != null ? `${decision.latency_ms}ms` : '—'}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Safety Version</span>
+                  <span className="text-muted-foreground">Policy Version</span>
                   <span className="font-mono">{decision.policy_version ?? 'N/A'}</span>
                 </div>
                 <div className="flex justify-between text-sm">

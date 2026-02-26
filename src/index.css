@@ -104,8 +104,8 @@
 
 @layer components {
   .glass-card {
-    @apply bg-card/60 backdrop-blur-xl border border-white/10 rounded-2xl;
-    box-shadow: 
+    @apply bg-card/60 backdrop-blur-xl border border-white/10 rounded-2xl relative overflow-hidden;
+    box-shadow:
       0 8px 32px rgba(0, 0, 0, 0.4),
       inset 0 1px 0 rgba(255, 255, 255, 0.05);
   }
@@ -116,8 +116,9 @@
 
   .glass-card-hover:hover {
     @apply border-white/20;
-    box-shadow: 
-      0 12px 40px rgba(139, 92, 246, 0.15),
+    box-shadow:
+      0 12px 40px rgba(100, 220, 120, 0.08),
+      0 8px 32px rgba(0, 0, 0, 0.45),
       inset 0 1px 0 rgba(255, 255, 255, 0.08);
   }
 

@@ -41,7 +41,7 @@ export function StatCard({
       transition={{ delay: delay * 0.1, duration: 0.5 }}
       className="glass-card-hover p-6"
     >
-      <div className={`absolute inset-0 rounded-2xl bg-gradient-to-br ${variantStyles[variant]} opacity-50`} />
+      <div className={`absolute inset-0 bg-gradient-to-br ${variantStyles[variant]} opacity-50`} />
       
       <div className="relative flex items-start justify-between">
         <div>

@@ -392,7 +392,7 @@ export default function Quickstart() {
                   </div>
                   <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
                     <HelpCircle className="h-3.5 w-3.5" />
-                    <span>Only needed if you want EDON to connect to external agent frameworks like Claw.</span>
+                    <span>Only needed if you want EDON to connect to external agent frameworks or multi-agent pipelines.</span>
                   </div>
                 </CollapsibleContent>
               </Collapsible>
