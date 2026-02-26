@@ -12,7 +12,7 @@ services:
       - agent.edoncore.com
     envVars:
       - key: VITE_EDON_GATEWAY_URL
-        value: https://edon-gateway.onrender.com
+        value: https://edon-gateway.fly.dev
       - key: VITE_EDON_MOCK_MODE
         value: "false"
     routes:

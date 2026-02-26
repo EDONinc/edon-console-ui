@@ -30,7 +30,7 @@ function getStoredBaseUrl(envUrl?: string, isProd?: boolean) {
     LEGACY_BASE_KEYS.map((k) => localStorage.getItem(k))
       .find((x) => (x ?? "").trim().length > 0) ||
     envUrl ||
-    (isProd ? "https://api.edoncore.com" : "http://127.0.0.1:8000");
+    (isProd ? "https://edon-gateway.fly.dev" : "http://127.0.0.1:8000");
   return v.trim();
 }
 
@@ -83,6 +83,7 @@ export default function Settings() {
   const persist = (trimmedBase: string, trimmedToken: string) => {
     localStorage.setItem(BASE_URL_KEY, trimmedBase);
     localStorage.setItem(TOKEN_KEY, trimmedToken);
+    localStorage.setItem("edon_api_key", trimmedToken);
     localStorage.setItem("EDON_BASE_URL", trimmedBase);
     localStorage.setItem("edon_base_url", trimmedBase);
   };

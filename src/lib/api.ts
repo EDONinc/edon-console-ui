@@ -17,7 +17,7 @@ const getBaseUrl = () => {
       return envUrl;
     }
   }
-  return isProd ? 'https://edon-gateway.onrender.com' : 'http://127.0.0.1:8000';
+  return isProd ? 'https://edon-gateway.fly.dev' : 'http://127.0.0.1:8000';
 };
 
 const getToken = () => {

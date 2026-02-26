@@ -12,6 +12,8 @@ import Audit from "./pages/Audit";
 import Policies from "./pages/Policies";
 import Settings from "./pages/Settings";
 import Pricing from "./pages/Pricing";
+import Integrations from "./pages/Integrations";
+import Quickstart from "./pages/Quickstart";
 import NotFound from "./pages/NotFound";
 import { AccessGate } from "@/components/AccessGate";
 
@@ -21,7 +23,11 @@ const AppRoutes = () => {
   const location = useLocation();
   const [hasToken, setHasToken] = useState(() => {
     if (typeof window === "undefined") return false;
-    return Boolean(localStorage.getItem("edon_token"));
+    return Boolean(
+      localStorage.getItem("edon_token") ||
+      localStorage.getItem("edon_api_key") ||
+      localStorage.getItem("edon_session_token")
+    );
   });
   const [mockMode, setMockMode] = useState(false);
 
@@ -29,7 +35,11 @@ const AppRoutes = () => {
     if (typeof window === "undefined") return;
 
     const refresh = () => {
-      setHasToken(Boolean(localStorage.getItem("edon_token")));
+      setHasToken(Boolean(
+        localStorage.getItem("edon_token") ||
+        localStorage.getItem("edon_api_key") ||
+        localStorage.getItem("edon_session_token")
+      ));
       setMockMode(false);
     };
 
@@ -58,6 +68,8 @@ const AppRoutes = () => {
       <Route path="/policies" element={<Policies />} />
       <Route path="/settings" element={<Settings />} />
       <Route path="/pricing" element={<Pricing />} />
+      <Route path="/integrations" element={<Integrations />} />
+      <Route path="/quickstart" element={<Quickstart />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );
@@ -98,6 +110,7 @@ const App = () => {
     if (safeToken) {
       localStorage.setItem("edon_token", safeToken);
       localStorage.setItem("edon_session_token", safeToken);
+      localStorage.setItem("edon_api_key", safeToken);
       localStorage.setItem("edon_mock_mode", "false");
     }
 

@@ -3,10 +3,15 @@
  * Configure VITE_EDON_GATEWAY_URL in .env.local
  */
 
-const BASE_URL = (import.meta.env.VITE_EDON_GATEWAY_URL || "https://edon-gatewaybk.fly.dev").replace(/\/$/, "");
+const BASE_URL = (import.meta.env.VITE_EDON_GATEWAY_URL || "https://edon-gateway.fly.dev").replace(/\/$/, "");
 
 function getToken(): string {
-  return localStorage.getItem("edon_api_key") || "";
+  return (
+    localStorage.getItem("edon_token") ||
+    localStorage.getItem("edon_session_token") ||
+    localStorage.getItem("edon_api_key") ||
+    ""
+  ).trim();
 }
 
 async function apiFetch(path: string, options: RequestInit = {}): Promise<Response> {
@@ -53,6 +58,8 @@ export interface PlanInfo {
 export const edonApi = {
   setApiKey(key: string) {
     localStorage.setItem("edon_api_key", key);
+    localStorage.setItem("edon_token", key);
+    localStorage.setItem("edon_session_token", key);
   },
 
   getApiKey(): string {
@@ -61,6 +68,8 @@ export const edonApi = {
 
   clearApiKey() {
     localStorage.removeItem("edon_api_key");
+    localStorage.removeItem("edon_token");
+    localStorage.removeItem("edon_session_token");
   },
 
   async health(): Promise<HealthStatus> {
