@@ -5,6 +5,7 @@ export const AccessGate = () => {
   return (
     <div className="min-h-screen bg-background text-foreground flex items-center justify-center px-6">
       <div className="w-full max-w-lg rounded-2xl border border-white/10 bg-white/5 p-8 shadow-xl">
+        <img src="/edon-logo.svg" alt="EDON" className="h-12 w-12 mx-auto mb-4 object-contain" />
         <p className="text-xs uppercase tracking-widest text-muted-foreground mb-3">
           EDON Governance Console
         </p>

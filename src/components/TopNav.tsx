@@ -60,15 +60,13 @@ export function TopNav() {
       >
         <div className="container mx-auto px-6 py-4">
           <div className="flex items-center justify-between gap-6">
-            {/* Wordmark */}
-            <div className="flex items-center gap-2.5">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/15 border border-primary/25 shrink-0">
-                <ShieldCheck className="w-4 h-4 text-primary" />
-              </div>
+            {/* EDON logo + wordmark */}
+            <NavLink to="/" className="flex items-center gap-2.5 shrink-0">
+              <img src="/edon-logo.svg" alt="EDON" className="h-8 w-8 object-contain" />
               <span className="edon-brand text-lg font-semibold tracking-[0.3em] text-foreground/90">
                 EDON
               </span>
-            </div>
+            </NavLink>
 
             {/* Navigation */}
             <nav className="flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-2 py-1">
