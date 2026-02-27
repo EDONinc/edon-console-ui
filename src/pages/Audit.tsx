@@ -231,7 +231,7 @@ export default function Audit() {
               <div className="flex flex-wrap gap-4">
                 <div className="relative min-w-[250px]">
                   <Input
-                    placeholder="Intent ID (e.g., intent_clawdbot_safe_...)"
+                    placeholder="Intent ID (e.g., intent_abc123...)"
                     value={intentIdFilter}
                     onChange={(e) => setIntentIdFilter(e.target.value)}
                     className="bg-secondary/50 font-mono text-sm"

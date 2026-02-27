@@ -80,8 +80,11 @@ const App = () => {
     if (typeof window === "undefined") return;
 
     const params = new URLSearchParams(window.location.search);
-    const baseUrl = (params.get("base") || params.get("gateway") || "").trim();
-    const token = (params.get("token") || "").trim();
+    // Also read from URL fragment (#token=...) — sentinel-core passes token
+    // in the hash so it is never sent to servers or captured in access logs.
+    const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+    const baseUrl = (params.get("base") || params.get("gateway") || hashParams.get("base") || "").trim();
+    const token = (params.get("token") || hashParams.get("token") || "").trim();
     localStorage.setItem("edon_mock_mode", "false");
 
     const sanitizeBaseUrl = (value: string) => {
@@ -119,7 +122,8 @@ const App = () => {
       params.delete("gateway");
       params.delete("token");
       const cleaned = params.toString();
-      const nextUrl = `${window.location.pathname}${cleaned ? `?${cleaned}` : ""}${window.location.hash || ""}`;
+      // Clear the hash entirely — token has been consumed and stored
+      const nextUrl = `${window.location.pathname}${cleaned ? `?${cleaned}` : ""}`;
       window.history.replaceState({}, "", nextUrl);
       window.dispatchEvent(new Event("edon-auth-updated"));
     }

@@ -41,14 +41,12 @@ const iconMap: Record<string, typeof Shield> = {
   'personal_safe': ShieldCheck,
   'work_safe': Shield,
   'ops_admin': Zap,
-  'clawdbot_safe': ShieldCheck,
 };
 
 const nameMap: Record<string, string> = {
   'personal_safe': 'Personal Safe',
   'work_safe': 'Work Safe',
   'ops_admin': 'Operations',
-  'clawdbot_safe': 'Clawdbot Safe',
   'finance_lock': 'Finance Lock',
   'research_mode': 'Research Mode',
 };
@@ -57,14 +55,12 @@ const colorMap: Record<string, string> = {
   'personal_safe': 'text-emerald-400',
   'work_safe': 'text-primary',
   'ops_admin': 'text-amber-400',
-  'clawdbot_safe': 'text-blue-400',
 };
 
 const gradientMap: Record<string, string> = {
   'personal_safe': 'from-emerald-500/20 to-emerald-700/10',
   'work_safe': 'from-primary/20 to-primary/5',
   'ops_admin': 'from-amber-500/20 to-orange-600/10',
-  'clawdbot_safe': 'from-blue-500/20 to-blue-700/10',
 };
 
 const GOVERNANCE_MODES = [
@@ -143,10 +139,11 @@ export default function Policies() {
   }, []);
 
   const getCustomLimit = (plan: string) => {
-    const normalized = plan.replace(/\s+/g, '').toLowerCase();
-    if (normalized.includes('pro+')) return 10;
-    if (normalized.includes('proplus') || normalized.includes('pro_plus')) return 10;
-    if (normalized.includes('pro')) return 1;
+    const n = plan.replace(/\s+/g, '').toLowerCase();
+    if (n.includes('enterprise')) return 50;
+    if (n.includes('business')) return 10;
+    if (n.includes('growth')) return 5;
+    if (n.includes('starter')) return 1;
     return 0;
   };
 
@@ -187,7 +184,7 @@ export default function Policies() {
       toast({
         title: 'Limit reached',
         description: customLimit < 10
-          ? 'Pro+ users only for more than 1 custom policy.'
+          ? 'Growth plan or higher required for more than 1 custom policy.'
           : `Your plan allows ${customLimit} custom polic${customLimit === 1 ? 'y' : 'ies'}.`,
         variant: 'destructive',
       });
@@ -226,27 +223,17 @@ export default function Policies() {
           name: 'personal_safe',
           description: 'Conservative mode optimized for personal use',
           risk_level: 'low',
-          scope_summary: { clawdbot: 1 },
+          scope_summary: { agents: 1 },
           constraints_summary: { allowed_tools: 4, blocked_tools: 4, confirm_required: true },
           icon: ShieldCheck,
           color: 'text-emerald-400',
           bgGradient: 'from-emerald-500/20 to-emerald-700/10',
         },
         {
-          name: 'clawdbot_safe',
-          description: 'Safe baseline for Clawdbot operations',
-          risk_level: 'low',
-          scope_summary: { clawdbot: 1 },
-          constraints_summary: { allowed_tools: 4, blocked_tools: 7, confirm_required: true },
-          icon: ShieldCheck,
-          color: 'text-blue-400',
-          bgGradient: 'from-blue-500/20 to-blue-700/10',
-        },
-        {
           name: 'work_safe',
           description: 'Balanced policy for work environments',
           risk_level: 'medium',
-          scope_summary: { clawdbot: 1 },
+          scope_summary: { agents: 1 },
           constraints_summary: { allowed_tools: 6, blocked_tools: 3, confirm_required: true },
           icon: Shield,
           color: 'text-sky-400',
@@ -256,7 +243,7 @@ export default function Policies() {
           name: 'ops_admin',
           description: 'Flexible mode for business workflows',
           risk_level: 'high',
-          scope_summary: { clawdbot: 1 },
+          scope_summary: { agents: 1 },
           constraints_summary: { allowed_tools: 10, blocked_tools: 1, confirm_required: false },
           icon: Zap,
           color: 'text-amber-400',
@@ -266,7 +253,7 @@ export default function Policies() {
           name: 'finance_lock',
           description: 'High-safety policy for finance and approvals',
           risk_level: 'low',
-          scope_summary: { clawdbot: 1 },
+          scope_summary: { agents: 1 },
           constraints_summary: { allowed_tools: 3, blocked_tools: 8, confirm_required: true },
           icon: ShieldAlert,
           color: 'text-red-400',
@@ -276,7 +263,7 @@ export default function Policies() {
           name: 'research_mode',
           description: 'Research-focused policy with web and data access',
           risk_level: 'medium',
-          scope_summary: { clawdbot: 1 },
+          scope_summary: { agents: 1 },
           constraints_summary: { allowed_tools: 8, blocked_tools: 2, confirm_required: false },
           icon: ShieldCheck,
           color: 'text-cyan-400',
@@ -302,7 +289,7 @@ export default function Policies() {
           name: 'work_safe',
           description: 'Balanced policy for work environments',
           risk_level: 'medium',
-          scope_summary: { clawdbot: 1 },
+          scope_summary: { agents: 1 },
           constraints_summary: { allowed_tools: 6, blocked_tools: 3, confirm_required: true },
           icon: Shield,
           color: 'text-sky-400',
@@ -312,7 +299,7 @@ export default function Policies() {
           name: 'ops_admin',
           description: 'Flexible mode for business workflows',
           risk_level: 'high',
-          scope_summary: { clawdbot: 1 },
+          scope_summary: { agents: 1 },
           constraints_summary: { allowed_tools: 10, blocked_tools: 1, confirm_required: false },
           icon: Zap,
           color: 'text-amber-400',
@@ -322,7 +309,7 @@ export default function Policies() {
           name: 'finance_lock',
           description: 'High-safety policy for finance and approvals',
           risk_level: 'low',
-          scope_summary: { clawdbot: 1 },
+          scope_summary: { agents: 1 },
           constraints_summary: { allowed_tools: 3, blocked_tools: 8, confirm_required: true },
           icon: ShieldAlert,
           color: 'text-red-400',
@@ -332,7 +319,7 @@ export default function Policies() {
           name: 'research_mode',
           description: 'Research-focused policy with web and data access',
           risk_level: 'medium',
-          scope_summary: { clawdbot: 1 },
+          scope_summary: { agents: 1 },
           constraints_summary: { allowed_tools: 8, blocked_tools: 2, confirm_required: false },
           icon: ShieldCheck,
           color: 'text-cyan-400',
@@ -377,8 +364,11 @@ export default function Policies() {
 
     try {
       const status = await edonApi.getIntegrationStatus();
-      if (status?.clawdbot?.active_policy_pack) {
-        setActivePolicy(status.clawdbot.active_policy_pack);
+      // Support both current and legacy field names
+      const integration = (status as Record<string, unknown>)?.agent ?? (status as Record<string, unknown>)?.clawdbot;
+      const pack = (integration as Record<string, unknown> | undefined)?.active_policy_pack;
+      if (typeof pack === 'string' && pack) {
+        setActivePolicy(pack);
       }
     } catch (error) {
       // Silently fail - token might not be set yet
@@ -574,7 +564,7 @@ export default function Policies() {
               <div>
                 <h2 className="text-lg font-semibold">Custom Policies</h2>
                 <p className="text-sm text-muted-foreground">
-                  Tailor governance rules to your exact use case. Starter unlocks 1 custom pack; Business unlocks up to 10.
+                  Tailor governance rules to your exact use case. Starter unlocks 1 custom pack; Growth unlocks 5; Business unlocks 10.
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -584,9 +574,9 @@ export default function Policies() {
                 <Badge className="bg-primary/20 text-primary border-primary/30 text-xs">
                   {customPolicies.length}/{customLimit} used
                 </Badge>
-                {customLimit < 10 && (
+                {customLimit < 5 && (
                   <Badge variant="outline" className="text-xs border-white/10 text-muted-foreground">
-                    Pro+ users only
+                    Growth+ required
                   </Badge>
                 )}
               </div>
@@ -594,7 +584,7 @@ export default function Policies() {
 
             {customLimit === 0 ? (
               <div className="mt-4 rounded-lg border border-white/10 bg-white/5 p-4 text-sm text-muted-foreground">
-                Upgrade to Pro to create a custom safety pack.
+                Upgrade to Starter or higher to create a custom safety pack.
               </div>
             ) : (
               <div className="mt-4 grid lg:grid-cols-[1.2fr_1fr] gap-6">

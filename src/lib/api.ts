@@ -243,15 +243,15 @@ class EdonApiClient {
           name: 'personal_safe',
           description: 'Conservative mode optimized for personal use',
           risk_level: 'low',
-          scope_summary: { clawdbot: 1 },
+          scope_summary: { agents: 1 },
           constraints_summary: { allowed_tools: 4, blocked_tools: 4, confirm_required: true },
         },
         {
-          name: 'clawdbot_safe',
-          description: 'Safe baseline for Clawdbot operations',
-          risk_level: 'low',
-          scope_summary: { clawdbot: 1 },
-          constraints_summary: { allowed_tools: 4, blocked_tools: 7, confirm_required: true },
+          name: 'work_safe',
+          description: 'Balanced policy for business workflows',
+          risk_level: 'medium',
+          scope_summary: { agents: 1 },
+          constraints_summary: { allowed_tools: 6, blocked_tools: 3, confirm_required: true },
         },
       ] as T;
     }
@@ -271,7 +271,7 @@ class EdonApiClient {
         credential_id: 'clawdbot_gateway',
         base_url: 'http://127.0.0.1:18789',
         auth_mode: 'password',
-        message: 'Clawdbot connected. Credential saved.',
+        message: 'Agent connected. Credential saved.',
       } as T;
     }
 

@@ -4,9 +4,14 @@ import { TopNav } from "@/components/TopNav";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { edonApi } from "@/lib/api";
-import { Lock, Zap, Check, Save, Wifi, WifiOff, ChevronRight } from "lucide-react";
+import {
+  Lock, Briefcase, Bot, Check, Save,
+  Wifi, WifiOff, ChevronRight, ChevronDown,
+  AlertTriangle, Send,
+} from "lucide-react";
 import { Link } from "react-router-dom";
 
 const BASE_URL_KEY = "edon_api_base";
@@ -50,8 +55,30 @@ async function safeText(res: Response) {
 }
 
 const SAFETY_MODES = [
-  { packName: "personal_safe", label: "Safe Mode", icon: Lock, description: "Blocks high-risk actions automatically. Low-risk allowed.", default: true },
-  { packName: "work_safe", label: "Business Mode", icon: Zap, description: "Allows workflows that affect business operations. Medium-risk allowed.", default: false },
+  {
+    packName: "personal_safe",
+    label: "Safe Mode",
+    icon: Lock,
+    description: "High-risk actions are blocked before they run. Best starting point for any deployment.",
+    recommended: true,
+    caution: false,
+  },
+  {
+    packName: "work_safe",
+    label: "Business Mode",
+    icon: Briefcase,
+    description: "Business operations run freely. Sensitive actions (financial, data access) require approval.",
+    recommended: false,
+    caution: false,
+  },
+  {
+    packName: "ops_admin",
+    label: "Autonomy Mode",
+    icon: Bot,
+    description: "Agents operate without interruption. Only critical safety violations are surfaced.",
+    recommended: false,
+    caution: true,
+  },
 ] as const;
 
 export default function Settings() {
@@ -63,21 +90,23 @@ export default function Settings() {
   const [connectionStatus, setConnectionStatus] = useState<"unknown" | "connected" | "failed">("unknown");
   const [testing, setTesting] = useState(false);
   const [applyingSafety, setApplyingSafety] = useState<string | null>(null);
+  const [connectionOpen, setConnectionOpen] = useState(false);
 
   const [userName, setUserName] = useState<string>("");
-  const [planName, setPlanName] = useState<string>("Pro");
+  const [planName, setPlanName] = useState<string>("");
   const [decisionsUsed, setDecisionsUsed] = useState<number | null>(null);
   const [decisionsLimit, setDecisionsLimit] = useState<number | null>(null);
   const [safetyPreset, setSafetyPreset] = useState<string | null>(null);
   const [telegramConnected, setTelegramConnected] = useState(false);
+  const [loadingAccount, setLoadingAccount] = useState(false);
 
   useEffect(() => {
     const envUrl = import.meta.env.VITE_EDON_GATEWAY_URL as string | undefined;
     const envToken = import.meta.env.VITE_EDON_API_TOKEN as string | undefined;
     setBaseUrl(getStoredBaseUrl(envUrl, isProd));
     setToken(getStoredToken(envToken));
-    setUserName(localStorage.getItem(EMAIL_KEY) || "User");
-    setPlanName(localStorage.getItem(PLAN_KEY) || "Pro");
+    setUserName(localStorage.getItem(EMAIL_KEY) || "");
+    setPlanName(localStorage.getItem(PLAN_KEY) || "");
   }, [isProd]);
 
   const persist = (trimmedBase: string, trimmedToken: string) => {
@@ -91,7 +120,7 @@ export default function Settings() {
   const loadAccountAndIntegrations = async () => {
     const t = getStoredToken();
     if (!t || !isLikelyToken(t)) return;
-
+    setLoadingAccount(true);
     try {
       const [session, billing, health, integrations] = await Promise.all([
         edonApi.getSession().catch(() => null),
@@ -108,7 +137,6 @@ export default function Settings() {
         setPlanName(session.plan);
         localStorage.setItem(PLAN_KEY, session.plan);
       }
-
       if (billing) {
         setPlanName((billing as { plan?: string }).plan ?? planName);
         const usage = (billing as { usage?: { today?: number } }).usage;
@@ -118,23 +146,23 @@ export default function Settings() {
         if (typeof used === "number") setDecisionsUsed(used);
         if (typeof limit === "number") setDecisionsLimit(limit);
       }
-
       if (health?.governor?.active_preset?.preset_name) {
         setSafetyPreset(health.governor.active_preset.preset_name);
       }
-
       if (integrations && typeof integrations === "object") {
         const obj = integrations as Record<string, unknown>;
         setTelegramConnected(!!(obj.telegram && typeof obj.telegram === "object"));
       }
     } catch {
-      setTelegramConnected(false);
+      // silently keep existing state
+    } finally {
+      setLoadingAccount(false);
     }
   };
 
   useEffect(() => {
     loadAccountAndIntegrations();
-  }, [token]);
+  }, [token]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const applySafetyMode = async (packName: string) => {
     setApplyingSafety(packName);
@@ -165,16 +193,15 @@ export default function Settings() {
       return;
     }
     if (!safeBase) {
-      toast({ title: "Invalid base URL", description: "Enter a valid http(s) URL.", variant: "destructive" });
+      toast({ title: "Invalid gateway URL", description: "Enter a valid https:// URL.", variant: "destructive" });
       return;
     }
     if (!isLikelyToken(trimmedToken)) {
-      toast({ title: "Invalid access key", description: "Access key format looks invalid.", variant: "destructive" });
+      toast({ title: "Invalid access key", description: "The key format doesn't look right.", variant: "destructive" });
       return;
     }
-
     persist(safeBase, trimmedToken);
-    toast({ title: "Settings saved", description: "Your configuration has been saved." });
+    toast({ title: "Saved", description: "Your connection settings have been saved." });
   };
 
   const testConnection = async () => {
@@ -186,7 +213,7 @@ export default function Settings() {
 
     try {
       if (!safeBase || !isLikelyToken(trimmedToken)) {
-        throw new Error("Set a valid base URL and access key first.");
+        throw new Error("Add a valid gateway URL and access key first.");
       }
       persist(safeBase, trimmedToken);
       const base = safeBase.replace(/\/$/, "");
@@ -194,11 +221,11 @@ export default function Settings() {
         method: "GET",
         headers: { "X-EDON-TOKEN": trimmedToken },
       });
-      if (res.status === 401) throw new Error("401 — access key not accepted.");
-      if (!res.ok) throw new Error(`Connection error ${res.status}. ${await safeText(res)}`);
+      if (res.status === 401) throw new Error("Access key not accepted.");
+      if (!res.ok) throw new Error(`Connection error (${res.status}). ${await safeText(res)}`);
 
       setConnectionStatus("connected");
-      toast({ title: "Connected", description: "Connection verified." });
+      toast({ title: "Connected", description: "Gateway is reachable and your key is accepted." });
       loadAccountAndIntegrations();
     } catch (err: unknown) {
       setConnectionStatus("failed");
@@ -213,193 +240,286 @@ export default function Settings() {
   };
 
   const activeSafetyPack = safetyPreset ?? "personal_safe";
+  const usagePct = decisionsUsed != null && decisionsLimit != null && decisionsLimit > 0
+    ? Math.min(100, (decisionsUsed / decisionsLimit) * 100)
+    : null;
 
   return (
     <div className="min-h-screen">
       <TopNav />
-      <main className="container mx-auto px-6 py-8 max-w-xl">
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-          {/* 1. Minimal header */}
-          <header className="mb-8">
-            <h1 className="text-xl font-semibold tracking-wide text-foreground/90">Account & Settings</h1>
-            <div className="mt-2 h-px bg-white/10" aria-hidden />
-            <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-1 text-sm text-muted-foreground">
-              <span>Signed in: <span className="text-foreground/90">{userName || "User"}</span></span>
-              <span>Plan: <span className="text-foreground/90">{planName || "Pro"}</span></span>
-            </div>
-          </header>
+      <main className="container mx-auto px-6 py-8 max-w-lg">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
 
-          {/* 2. Usage & Safety — front and center */}
-          <section className="space-y-6 mb-8">
-            <h2 className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">Usage & Safety</h2>
+          {/* Page title */}
+          <div>
+            <h1 className="text-xl font-semibold text-foreground/90">Settings</h1>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              Manage your account, safety mode, and gateway connection.
+            </p>
+          </div>
 
-            {/* Plan & Usage */}
-            <div className="glass-card p-5">
-              <div className="flex items-center justify-between mb-3">
-                <p className="text-xs uppercase tracking-wider text-muted-foreground">Plan & Usage</p>
-                {planName && planName !== "free" && planName !== "" && (
-                  <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-primary/15 text-primary border border-primary/25 capitalize">
-                    {planName}
-                  </span>
-                )}
-              </div>
-              <p className="text-lg font-medium">
-                {decisionsUsed != null && decisionsLimit != null
-                  ? `${decisionsUsed.toLocaleString()} / ${decisionsLimit.toLocaleString()} decisions`
-                  : decisionsUsed != null
-                    ? `${decisionsUsed.toLocaleString()} decisions used`
-                    : "Usage data loading…"}
-              </p>
-              {decisionsLimit != null && decisionsUsed != null && (
-                <div className="mt-2">
-                  <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
-                    <div
-                      className="h-full rounded-full bg-primary/70 transition-all"
-                      style={{ width: `${Math.min(100, (decisionsUsed / decisionsLimit) * 100)}%` }}
-                    />
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-1.5">
-                    {Math.max(0, decisionsLimit - decisionsUsed).toLocaleString()} decisions remaining this month
-                  </p>
+          {/* ── ACCOUNT ─────────────────────────────── */}
+          <section>
+            <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">Account</p>
+            <div className="glass-card divide-y divide-white/5">
+
+              {/* Identity row */}
+              <div className="px-5 py-4 flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium">{userName || "Signed in"}</p>
+                  {planName && (
+                    <p className="text-xs text-muted-foreground mt-0.5 capitalize">{planName} plan</p>
+                  )}
                 </div>
-              )}
-            </div>
+                <a
+                  href="https://edoncore.com/account"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-primary hover:underline inline-flex items-center gap-0.5 shrink-0"
+                >
+                  Manage account <ChevronRight className="h-3 w-3" />
+                </a>
+              </div>
 
-            {/* Safety Mode — prominent, simple */}
-            <div className="glass-card p-5">
-              <div className="flex items-center justify-between mb-4">
-                <p className="text-xs uppercase tracking-wider text-muted-foreground">Safety Mode</p>
-                <Link to="/policies" className="text-xs text-primary hover:underline inline-flex items-center gap-0.5">Manage <ChevronRight className="h-3.5 w-3.5" /></Link>
+              {/* Usage row */}
+              <div className="px-5 py-4">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs text-muted-foreground">Decisions today</p>
+                  {decisionsUsed != null && decisionsLimit != null ? (
+                    <p className="text-xs font-medium tabular-nums">
+                      {decisionsUsed.toLocaleString()} / {decisionsLimit.toLocaleString()}
+                    </p>
+                  ) : (
+                    <p className="text-xs text-muted-foreground/50">
+                      {loadingAccount ? "Loading…" : "—"}
+                    </p>
+                  )}
+                </div>
+                {usagePct != null ? (
+                  <>
+                    <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all ${
+                          usagePct >= 90 ? "bg-red-400/80" : usagePct >= 70 ? "bg-amber-400/80" : "bg-primary/70"
+                        }`}
+                        style={{ width: `${usagePct}%` }}
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1.5">
+                      {Math.max(0, decisionsLimit! - decisionsUsed!).toLocaleString()} remaining today
+                    </p>
+                  </>
+                ) : (
+                  <div className="h-1.5 rounded-full bg-white/10" />
+                )}
               </div>
-              <p className="text-sm text-muted-foreground mb-4 flex items-center gap-2">
-                <Lock className="h-4 w-4 shrink-0 text-muted-foreground" />
-                Control how much autonomy your agents have — from fully supervised to always-on.
-              </p>
-              <div className="space-y-3">
-                {SAFETY_MODES.map((mode) => {
-                  const Icon = mode.icon;
-                  const isActive = activeSafetyPack === mode.packName;
-                  return (
-                    <button
-                      key={mode.packName}
-                      type="button"
-                      onClick={() => !isActive && applySafetyMode(mode.packName)}
-                      disabled={applyingSafety === mode.packName}
-                      className={`w-full flex items-center gap-3 rounded-lg border px-4 py-3 text-left transition ${
-                        isActive
-                          ? "border-primary/50 bg-primary/10"
-                          : "border-white/10 bg-white/5 hover:bg-white/10"
-                      }`}
-                    >
-                      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/10">
-                        <Icon className="h-4 w-4 text-foreground/90" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium flex items-center gap-2">
-                          {mode.label}
-                          {mode.label === "Safe Mode" ? <Check className="h-4 w-4 text-muted-foreground shrink-0" /> : <Zap className="h-4 w-4 text-amber-400 shrink-0" />}
-                          {isActive && <Check className="h-4 w-4 text-emerald-400 shrink-0" />}
-                        </p>
-                        <p className="text-xs text-muted-foreground truncate">{mode.description}</p>
-                      </div>
-                      {applyingSafety === mode.packName && (
-                        <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin shrink-0" />
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
+
             </div>
           </section>
 
-          {/* 3. Connected Channels */}
-          <section className="mb-8">
-            <h2 className="text-sm font-semibold uppercase tracking-widest text-muted-foreground mb-3">Connected Channels</h2>
-            <div className="glass-card p-5">
-              <div className="flex items-center gap-3">
-                <span className="text-sm font-medium">Telegram</span>
+          {/* ── SAFETY MODE ─────────────────────────── */}
+          <section>
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Safety Mode</p>
+              <Link to="/policies" className="text-xs text-primary hover:underline inline-flex items-center gap-0.5">
+                Advanced <ChevronRight className="h-3 w-3" />
+              </Link>
+            </div>
+            <p className="text-sm text-muted-foreground mb-3">
+              Controls how much your agents can do without asking for approval.
+            </p>
+            <div className="space-y-2">
+              {SAFETY_MODES.map((mode) => {
+                const Icon = mode.icon;
+                const isActive = activeSafetyPack === mode.packName;
+                return (
+                  <button
+                    key={mode.packName}
+                    type="button"
+                    onClick={() => !isActive && applySafetyMode(mode.packName)}
+                    disabled={applyingSafety === mode.packName}
+                    className={`w-full flex items-center gap-3 rounded-xl border px-4 py-3.5 text-left transition-colors ${
+                      isActive
+                        ? "border-primary/50 bg-primary/10"
+                        : "border-white/10 bg-white/5 hover:bg-white/10 cursor-pointer"
+                    }`}
+                  >
+                    <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
+                      isActive ? "bg-primary/20" : "bg-white/10"
+                    }`}>
+                      <Icon className={`h-4 w-4 ${isActive ? "text-primary" : "text-foreground/80"}`} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="font-medium text-sm">{mode.label}</p>
+                        {mode.recommended && !isActive && (
+                          <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/25">
+                            Recommended
+                          </span>
+                        )}
+                        {mode.caution && !isActive && (
+                          <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/25 flex items-center gap-1">
+                            <AlertTriangle className="h-2.5 w-2.5" /> High trust
+                          </span>
+                        )}
+                        {isActive && (
+                          <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-primary/20 text-primary border border-primary/30 flex items-center gap-1">
+                            <Check className="h-2.5 w-2.5" /> Active
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-0.5">{mode.description}</p>
+                    </div>
+                    {applyingSafety === mode.packName && (
+                      <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin shrink-0" />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+
+          {/* ── CHANNELS ────────────────────────────── */}
+          <section>
+            <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">Channels</p>
+            <div className="glass-card px-5 py-4">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/10">
+                    <Send className="h-3.5 w-3.5 text-foreground/80" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">Telegram</p>
+                    <p className="text-xs text-muted-foreground">
+                      {telegramConnected
+                        ? "Receiving governance alerts and approvals"
+                        : "Get governance alerts sent to your Telegram"}
+                    </p>
+                  </div>
+                </div>
                 {telegramConnected ? (
-                  <Check className="h-4 w-4 text-emerald-400" />
+                  <Badge variant="outline" className="border-emerald-500/40 text-emerald-400 bg-emerald-500/10 text-xs shrink-0">
+                    <Check className="h-3 w-3 mr-1" /> Connected
+                  </Badge>
                 ) : (
-                  <span className="text-xs text-muted-foreground">Not connected</span>
+                  <a
+                    href="https://edoncore.com/account"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-primary hover:underline shrink-0"
+                  >
+                    Connect →
+                  </a>
                 )}
               </div>
             </div>
           </section>
 
-          {/* Upgrade prompt for non-enterprise users */}
+          {/* ── UPGRADE PROMPT ──────────────────────── */}
           {planName && !["business", "enterprise"].includes(planName.toLowerCase()) && (
-            <div className="glass-card p-5 mb-6 border border-primary/20">
-              <p className="text-sm font-medium mb-1">Unlock more governance</p>
+            <div className="glass-card p-5 border border-primary/20">
+              <p className="text-sm font-medium mb-1">More decisions, more agents</p>
               <p className="text-xs text-muted-foreground mb-3">
-                {!planName || planName === "free"
-                  ? "Free plan includes 100K decisions/mo and 1 agent. Upgrade to scale."
+                {planName === "free" || !planName
+                  ? "You're on the free plan — 100K decisions/day, 1 agent. Upgrade to scale."
                   : planName === "starter"
-                  ? "Starter includes 500K decisions/mo. Upgrade to Growth for 5M decisions and 25 agents."
+                  ? "Starter gives you 500K decisions/day. Move to Growth for 5M decisions and 25 agents."
                   : "Upgrade to Business for 25M decisions, 100 agents, and the full compliance suite."}
               </p>
               <Link to="/pricing" className="text-xs font-medium text-primary hover:underline">
-                View plans →
+                See all plans →
               </Link>
             </div>
           )}
 
-          {/* Minimal connection (collapsed / advanced) */}
-          <details className="glass-card">
-            <summary className="px-5 py-3 text-sm text-muted-foreground cursor-pointer hover:text-foreground/80 list-none flex items-center justify-between">
-              <span>Connection & access key</span>
-              <span className="text-xs text-muted-foreground/50">▸</span>
-            </summary>
-            <div className="px-5 pb-5 pt-1 space-y-3 border-t border-white/10">
-              <div>
-                <Label htmlFor="baseUrl" className="text-xs text-muted-foreground">Connection URL</Label>
-                <Input
-                  id="baseUrl"
-                  value={baseUrl}
-                  onChange={(e) => setBaseUrl(e.target.value)}
-                  placeholder="http://127.0.0.1:8000"
-                  className="bg-secondary/50 mt-1"
-                />
-              </div>
-              <div>
-                <Label htmlFor="token" className="text-xs text-muted-foreground">EDON access key</Label>
-                <Input
-                  id="token"
-                  type="password"
-                  value={token}
-                  onChange={(e) => setToken(e.target.value)}
-                  placeholder="Paste your EDON access key"
-                  className="bg-secondary/50 mt-1"
-                />
-              </div>
+          {/* ── GATEWAY CONNECTION ──────────────────── */}
+          <section>
+            <button
+              type="button"
+              onClick={() => setConnectionOpen((v) => !v)}
+              className="w-full flex items-center justify-between px-5 py-3 glass-card text-sm text-muted-foreground hover:text-foreground/80 transition-colors"
+            >
               <div className="flex items-center gap-2">
-                <Button onClick={testConnection} disabled={testing} variant="outline" size="sm" className="gap-2">
-                  {testing ? (
-                    <>
-                      <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                      Checking…
-                    </>
-                  ) : (
-                    <>
-                      {connectionStatus === "connected" ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
-                      {connectionStatus === "connected" ? "Connected" : "Test connection"}
-                    </>
-                  )}
-                </Button>
-                <Button onClick={saveSettings} size="sm" className="gap-2">
-                  <Save className="w-3 h-3" />
-                  Save
-                </Button>
+                {connectionStatus === "connected" ? (
+                  <Wifi className="h-3.5 w-3.5 text-emerald-400" />
+                ) : connectionStatus === "failed" ? (
+                  <WifiOff className="h-3.5 w-3.5 text-red-400" />
+                ) : (
+                  <Wifi className="h-3.5 w-3.5 text-muted-foreground/50" />
+                )}
+                <span>
+                  Gateway connection
+                  {connectionStatus === "connected" && <span className="ml-2 text-xs text-emerald-400">● Active</span>}
+                  {connectionStatus === "failed" && <span className="ml-2 text-xs text-red-400">● Failed</span>}
+                </span>
               </div>
-            </div>
-          </details>
+              <ChevronDown className={`h-4 w-4 transition-transform ${connectionOpen ? "rotate-180" : ""}`} />
+            </button>
 
-          <p className="text-xs text-muted-foreground text-center mt-6">
-            Manage your subscription and API keys at{" "}
-            <a href="https://edoncore.com/account" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
-              edoncore.com/account
-            </a>
-          </p>
+            {connectionOpen && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                className="glass-card mt-1 px-5 py-4 space-y-4 border-t-0 rounded-t-none"
+              >
+                <p className="text-xs text-muted-foreground">
+                  This is set automatically when you sign in from{" "}
+                  <a href="https://edoncore.com" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                    edoncore.com
+                  </a>
+                  . Only update this if you're running a self-hosted gateway.
+                </p>
+                <div className="space-y-1">
+                  <Label htmlFor="baseUrl" className="text-xs text-muted-foreground">EDON Gateway URL</Label>
+                  <Input
+                    id="baseUrl"
+                    value={baseUrl}
+                    onChange={(e) => setBaseUrl(e.target.value)}
+                    placeholder="https://api.edoncore.com"
+                    className="bg-secondary/50 mt-1 font-mono text-sm"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="token" className="text-xs text-muted-foreground">Access key</Label>
+                  <Input
+                    id="token"
+                    type="password"
+                    value={token}
+                    onChange={(e) => setToken(e.target.value)}
+                    placeholder="Your EDON access key"
+                    className="bg-secondary/50 mt-1"
+                  />
+                  <p className="text-xs text-muted-foreground/60">
+                    Find your access key under API Keys at edoncore.com/account
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 pt-1">
+                  <Button onClick={testConnection} disabled={testing} variant="outline" size="sm" className="gap-2">
+                    {testing ? (
+                      <>
+                        <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                        Checking…
+                      </>
+                    ) : (
+                      <>
+                        {connectionStatus === "connected" ? (
+                          <Wifi className="w-3 h-3 text-emerald-400" />
+                        ) : (
+                          <WifiOff className="w-3 h-3" />
+                        )}
+                        {connectionStatus === "connected" ? "Re-test" : "Test connection"}
+                      </>
+                    )}
+                  </Button>
+                  <Button onClick={saveSettings} size="sm" className="gap-2">
+                    <Save className="w-3 h-3" />
+                    Save
+                  </Button>
+                </div>
+              </motion.div>
+            )}
+          </section>
+
         </motion.div>
       </main>
     </div>
