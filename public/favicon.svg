@@ -1,7 +1,10 @@
 <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <rect width="32" height="32" rx="6" fill="black"/>
-  <!-- EDON mark: top hex, arrow, bottom hex (simplified) -->
-  <path d="M6 8 L10 6 L18 6 L22 8 L20 11 L12 11 Z" fill="white"/>
-  <path d="M6 16 L6 18 L20 18 L24 16 L20 16 Z" fill="white"/>
-  <path d="M6 24 L8 22 L10 24 L18 24 L22 22 L22 26 L18 28 L8 28 Z" fill="white"/>
+  <!-- Match marketing site: white rounded square, black EDON mark -->
+  <rect width="32" height="32" rx="6" fill="#ffffff"/>
+  <g transform="translate(4, 4) scale(0.2)">
+    <!-- EDON mark from edon-logo.svg (viewBox 0 0 120 120) -->
+    <path d="M20 15 L30 10 L70 10 L80 15 L75 25 L70 23 L60 25 L50 23 L40 25 L30 23 L25 25 Z" fill="black"/>
+    <path d="M20 50 L20 60 L70 60 L85 55 L95 50 L85 55 L70 50 Z" fill="black"/>
+    <path d="M20 95 L25 93 L30 95 L40 93 L50 95 L60 93 L70 95 L75 93 L80 95 L80 105 L70 110 L30 110 L20 105 Z" fill="black"/>
+  </g>
 </svg>
