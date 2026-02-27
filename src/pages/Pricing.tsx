@@ -5,6 +5,13 @@ import { edonApi, PlanInfo } from "@/lib/edonApi";
 import { Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
+/** Stripe checkout URLs per plan (set in .env: VITE_STRIPE_LINK_STARTER, etc.). Used when set; otherwise API checkout. */
+const STRIPE_LINKS: Record<string, string> = {
+  starter: (import.meta.env.VITE_STRIPE_LINK_STARTER as string) || "",
+  growth: (import.meta.env.VITE_STRIPE_LINK_GROWTH as string) || "",
+  business: (import.meta.env.VITE_STRIPE_LINK_BUSINESS as string) || "",
+};
+
 const FALLBACK_PLANS: PlanInfo[] = [
   {
     name: "Free",
@@ -86,17 +93,32 @@ export default function Pricing() {
   const safeRedirect = (url: string) => {
     try {
       const parsed = new URL(url);
-      if (parsed.hostname === 'checkout.stripe.com' || parsed.hostname === 'checkout.edoncore.com' || parsed.hostname === 'billing.stripe.com') {
-        window.location.href = url;
-      }
+      const allowed =
+        parsed.hostname === "checkout.stripe.com" ||
+        parsed.hostname === "buy.stripe.com" ||
+        parsed.hostname === "checkout.edoncore.com" ||
+        parsed.hostname === "billing.stripe.com";
+      if (allowed) window.location.href = url;
     } catch {
       // invalid URL, do nothing
     }
   };
 
+  function getStripeLink(plan: PlanInfo): string | null {
+    if (plan.slug === "free" || plan.contact_us) return null;
+    const link = STRIPE_LINKS[plan.slug];
+    return link && link.trim() ? link.trim() : null;
+  }
+
   async function handleUpgrade(plan: PlanInfo) {
+    if (plan.slug === "free") return;
     if (plan.contact_us) {
       window.location.href = "mailto:sales@edoncore.com?subject=Enterprise Inquiry";
+      return;
+    }
+    const stripeLink = getStripeLink(plan);
+    if (stripeLink) {
+      safeRedirect(stripeLink);
       return;
     }
     setCheckingOut(plan.slug);
