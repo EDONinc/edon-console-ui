@@ -694,15 +694,13 @@ export default function Settings() {
           </section>
 
           {/* ── UPGRADE PROMPT ──────────────────────── */}
-          {planName && !["business", "enterprise"].includes(planName.toLowerCase()) && (
+          {planName && planName.toLowerCase() !== "pro" && (
             <div className="glass-card p-5 border border-primary/20">
               <p className="text-sm font-medium mb-1">More decisions, more agents</p>
               <p className="text-xs text-muted-foreground mb-3">
                 {planName === "free" || !planName
-                  ? "You're on the free plan — 100K decisions/day, 1 agent. Upgrade to scale."
-                  : planName === "starter"
-                  ? "Starter gives you 500K decisions/day. Move to Growth for 5M decisions and 25 agents."
-                  : "Upgrade to Business for 25M decisions, 100 agents, and the full compliance suite."}
+                  ? "You're on the free plan — 50K decisions/mo, 3 agents. Upgrade to Scale for 5M decisions and 100 agents."
+                  : "Upgrade to Pro for 25M decisions, 1,000 agents, and the full compliance suite."}
               </p>
               <Link to="/pricing" className="text-xs font-medium text-primary hover:underline">
                 See all plans →

@@ -5,11 +5,10 @@ import { edonApi, PlanInfo } from "@/lib/edonApi";
 import { Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-/** Stripe checkout URLs per plan (set in .env: VITE_STRIPE_LINK_STARTER, etc.). Used when set; otherwise API checkout. */
+/** Stripe checkout URLs per plan (env overrides optional). */
 const STRIPE_LINKS: Record<string, string> = {
-  starter: (import.meta.env.VITE_STRIPE_LINK_STARTER as string) || "",
-  growth: (import.meta.env.VITE_STRIPE_LINK_GROWTH as string) || "",
-  business: (import.meta.env.VITE_STRIPE_LINK_BUSINESS as string) || "",
+  scale: (import.meta.env.VITE_STRIPE_LINK_SCALE as string) || "https://checkout.edoncore.com/b/3cI6oGeKAehceAq5fafIs0a",
+  pro: (import.meta.env.VITE_STRIPE_LINK_PRO as string) || "https://checkout.edoncore.com/b/9B67sK5a04GC4ZQ7nifIs09",
 };
 
 const FALLBACK_PLANS: PlanInfo[] = [
@@ -17,47 +16,28 @@ const FALLBACK_PLANS: PlanInfo[] = [
     name: "Free",
     slug: "free",
     price_usd: 0,
-    decisions_per_month: 100000,
-    max_agents: 1,
+    decisions_per_month: 50000,
+    max_agents: 3,
     audit_retention_days: 7,
     compliance_suite: false,
   },
   {
-    name: "Starter",
-    slug: "starter",
-    price_usd: 49,
-    decisions_per_month: 500000,
-    max_agents: 5,
+    name: "Scale",
+    slug: "scale",
+    price_usd: 150,
+    decisions_per_month: 5000000,
+    max_agents: 100,
     audit_retention_days: 90,
     compliance_suite: false,
   },
   {
-    name: "Growth",
-    slug: "growth",
-    price_usd: 199,
-    decisions_per_month: 5000000,
-    max_agents: 25,
-    audit_retention_days: 365,
-    compliance_suite: false,
-  },
-  {
-    name: "Business",
-    slug: "business",
-    price_usd: 499,
+    name: "Pro",
+    slug: "pro",
+    price_usd: 600,
     decisions_per_month: 25000000,
-    max_agents: 100,
-    audit_retention_days: 1095,
+    max_agents: 1000,
+    audit_retention_days: 365,
     compliance_suite: true,
-  },
-  {
-    name: "Enterprise",
-    slug: "enterprise",
-    price_usd: null,
-    decisions_per_month: null,
-    max_agents: null,
-    audit_retention_days: null,
-    compliance_suite: true,
-    contact_us: true,
   },
 ];
 
@@ -112,10 +92,6 @@ export default function Pricing() {
 
   async function handleUpgrade(plan: PlanInfo) {
     if (plan.slug === "free") return;
-    if (plan.contact_us) {
-      window.location.href = "mailto:sales@edoncore.com?subject=Enterprise Inquiry";
-      return;
-    }
     const stripeLink = getStripeLink(plan);
     if (stripeLink) {
       safeRedirect(stripeLink);
@@ -151,17 +127,15 @@ export default function Pricing() {
           </div>
 
           {/* Plan Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-10 pt-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-10 pt-4">
             {(() => {
               const PLAN_TAGLINES: Record<string, string> = {
-                free:       "Explore governance at zero cost",
-                starter:    "For growing teams shipping AI fast",
-                growth:     "Scale confidently with full coverage",
-                business:   "Mission-critical governance and compliance",
-                enterprise: "Custom infrastructure for regulated industries",
+                free:  "Explore governance at zero cost",
+                scale: "5M decisions, drift detection, alerts, basic audit export",
+                pro:   "25M decisions, AI governance assistant, compliance, priority support",
               };
               return plans.map((plan, i) => {
-              const isHighlighted = plan.slug === "growth";
+              const isHighlighted = plan.slug === "scale";
               return (
                 <div key={plan.slug} className="relative">
                   {isHighlighted && (
@@ -236,14 +210,10 @@ export default function Pricing() {
                       </span>
                     ) : plan.slug === "free" ? (
                       "Current plan"
-                    ) : plan.contact_us ? (
-                      "Contact sales"
-                    ) : plan.slug === "starter" ? (
-                      "Start with Starter"
-                    ) : plan.slug === "growth" ? (
-                      "Upgrade to Growth"
-                    ) : plan.slug === "business" ? (
-                      "Go Business"
+                    ) : plan.slug === "scale" ? (
+                      "Get Scale"
+                    ) : plan.slug === "pro" ? (
+                      "Get Pro"
                     ) : (
                       "Upgrade"
                     )}
