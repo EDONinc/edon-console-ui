@@ -11,6 +11,17 @@ const STRIPE_LINKS: Record<string, string> = {
   pro: (import.meta.env.VITE_STRIPE_LINK_PRO as string) || "https://checkout.edoncore.com/b/9B67sK5a04GC4ZQ7nifIs09",
 };
 
+const ENTERPRISE_PLAN: PlanInfo = {
+  name: "Enterprise",
+  slug: "enterprise",
+  price_usd: null,
+  decisions_per_month: null,
+  max_agents: null,
+  audit_retention_days: null,
+  compliance_suite: true,
+  contact_us: true,
+};
+
 const FALLBACK_PLANS: PlanInfo[] = [
   {
     name: "Free",
@@ -39,6 +50,7 @@ const FALLBACK_PLANS: PlanInfo[] = [
     audit_retention_days: 365,
     compliance_suite: true,
   },
+  ENTERPRISE_PLAN,
 ];
 
 function fmt(n: number | null) {
@@ -64,7 +76,9 @@ export default function Pricing() {
       .getPlans()
       .then((d) => {
         if (Array.isArray(d.plans) && d.plans.length > 0) {
-          setPlans(d.plans);
+          const fromApi = d.plans as PlanInfo[];
+          const hasEnterprise = fromApi.some((p) => p.slug === "enterprise");
+          setPlans(hasEnterprise ? fromApi : [...fromApi, ENTERPRISE_PLAN]);
         }
       })
       .catch(() => {});
@@ -92,6 +106,10 @@ export default function Pricing() {
 
   async function handleUpgrade(plan: PlanInfo) {
     if (plan.slug === "free") return;
+    if (plan.contact_us) {
+      window.location.href = "mailto:sales@edoncore.com?subject=Enterprise Inquiry";
+      return;
+    }
     const stripeLink = getStripeLink(plan);
     if (stripeLink) {
       safeRedirect(stripeLink);
@@ -127,12 +145,13 @@ export default function Pricing() {
           </div>
 
           {/* Plan Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-10 pt-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-10 pt-4">
             {(() => {
               const PLAN_TAGLINES: Record<string, string> = {
-                free:  "Explore governance at zero cost",
-                scale: "5M decisions, drift detection, alerts, basic audit export",
-                pro:   "25M decisions, AI governance assistant, compliance, priority support",
+                free:       "Explore governance at zero cost",
+                scale:      "5M decisions, drift detection, alerts, basic audit export",
+                pro:        "25M decisions, AI governance assistant, compliance, priority support",
+                enterprise: "Custom infrastructure for regulated industries",
               };
               return plans.map((plan, i) => {
               const isHighlighted = plan.slug === "scale";
@@ -214,6 +233,8 @@ export default function Pricing() {
                       "Get Scale"
                     ) : plan.slug === "pro" ? (
                       "Get Pro"
+                    ) : plan.contact_us ? (
+                      "Contact sales"
                     ) : (
                       "Upgrade"
                     )}
