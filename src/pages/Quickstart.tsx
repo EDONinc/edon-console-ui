@@ -448,7 +448,7 @@ export default function Quickstart() {
               <div className="rounded-lg border border-white/10 bg-white/5 p-4 space-y-2">
                 <p className="text-xs uppercase tracking-widest text-muted-foreground">Slack</p>
                 <p className="text-sm text-muted-foreground">Connect your workspace and slash commands.</p>
-                <Button size="sm" variant="outline" onClick={() => toast({ title: "Slack setup", description: "OAuth flow opens in Integrations." })}>
+                <Button size="sm" variant="outline" onClick={() => toast({ title: "Slack setup", description: "OAuth flow opens in Settings." })}>
                   Connect Slack
                 </Button>
               </div>
@@ -462,7 +462,7 @@ export default function Quickstart() {
               <div className="rounded-lg border border-white/10 bg-white/5 p-4 space-y-2">
                 <p className="text-xs uppercase tracking-widest text-muted-foreground">Email</p>
                 <p className="text-sm text-muted-foreground">Forward commands to your agent inbox.</p>
-                <Button size="sm" variant="outline" onClick={() => toast({ title: "Email setup", description: "Email channel configuration is in Integrations." })}>
+                <Button size="sm" variant="outline" onClick={() => toast({ title: "Email setup", description: "Email channel configuration is in Settings." })}>
                   Configure Email
                 </Button>
               </div>

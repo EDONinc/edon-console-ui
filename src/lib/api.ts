@@ -343,6 +343,38 @@ class EdonApiClient {
     return this.request<Record<string, unknown>>("/integrations/account/integrations");
   }
 
+  async connectTelegram(botToken: string, chatId: string) {
+    return this.request<{ connected: boolean; channel: string; message: string }>(
+      "/integrations/telegram/connect",
+      { method: "POST", body: JSON.stringify({ bot_token: botToken, chat_id: chatId }) }
+    );
+  }
+
+  async connectSlack(webhookUrl: string) {
+    return this.request<{ connected: boolean; channel: string; message: string }>(
+      "/integrations/slack/connect",
+      { method: "POST", body: JSON.stringify({ webhook_url: webhookUrl }) }
+    );
+  }
+
+  async connectDiscord(webhookUrl: string) {
+    return this.request<{ connected: boolean; channel: string; message: string }>(
+      "/integrations/discord/connect",
+      { method: "POST", body: JSON.stringify({ webhook_url: webhookUrl }) }
+    );
+  }
+
+  async getAlertPreferences() {
+    return this.request<AlertPreferences>("/integrations/alert-preferences");
+  }
+
+  async patchAlertPreferences(prefs: Partial<AlertPreferences>) {
+    return this.request<AlertPreferences>("/integrations/alert-preferences", {
+      method: "PATCH",
+      body: JSON.stringify(prefs),
+    });
+  }
+
   async getMetrics() {
     // We don't have /stats in the gateway.
     // So we approximate metrics using /decisions/query counts per verdict.
@@ -586,6 +618,13 @@ export interface TimeSeriesPoint {
 export interface BlockReason {
   reason: string;
   count: number;
+}
+
+export interface AlertPreferences {
+  alert_on_blocked?: boolean;
+  alert_on_policy_violation?: boolean;
+  alert_on_drift?: boolean;
+  alert_on_escalation?: boolean;
 }
 
 export const edonApi = new EdonApiClient();

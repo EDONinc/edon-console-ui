@@ -12,6 +12,8 @@ import {
   Wifi, WifiOff, ChevronRight, ChevronDown,
   AlertTriangle, Send,
 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import type { AlertPreferences } from "@/lib/api";
 import { Link } from "react-router-dom";
 
 const BASE_URL_KEY = "edon_api_base";
@@ -98,6 +100,26 @@ export default function Settings() {
   const [decisionsLimit, setDecisionsLimit] = useState<number | null>(null);
   const [safetyPreset, setSafetyPreset] = useState<string | null>(null);
   const [telegramConnected, setTelegramConnected] = useState(false);
+  const [slackConnected, setSlackConnected] = useState(false);
+  const [discordConnected, setDiscordConnected] = useState(false);
+
+  const [telegramOpen, setTelegramOpen] = useState(false);
+  const [slackOpen, setSlackOpen] = useState(false);
+  const [discordOpen, setDiscordOpen] = useState(false);
+
+  const [telegramToken, setTelegramToken] = useState("");
+  const [telegramChatId, setTelegramChatId] = useState("");
+  const [slackWebhook, setSlackWebhook] = useState("");
+  const [discordWebhook, setDiscordWebhook] = useState("");
+
+  const [connectingChannel, setConnectingChannel] = useState<string | null>(null);
+  const [alertPrefs, setAlertPrefs] = useState<AlertPreferences>({
+    alert_on_blocked: true,
+    alert_on_policy_violation: true,
+    alert_on_drift: true,
+    alert_on_escalation: true,
+  });
+  const [savingAlertPrefs, setSavingAlertPrefs] = useState(false);
   const [loadingAccount, setLoadingAccount] = useState(false);
 
   useEffect(() => {
@@ -151,7 +173,32 @@ export default function Settings() {
       }
       if (integrations && typeof integrations === "object") {
         const obj = integrations as Record<string, unknown>;
-        setTelegramConnected(!!(obj.telegram && typeof obj.telegram === "object"));
+        const tg = obj.telegram as { connected?: boolean } | undefined;
+        const slack = obj.slack as { connected?: boolean } | undefined;
+        const discord = obj.discord as { connected?: boolean } | undefined;
+        setTelegramConnected(!!tg?.connected);
+        setSlackConnected(!!slack?.connected);
+        setDiscordConnected(!!discord?.connected);
+        const prefs = obj.alert_preferences as AlertPreferences | undefined;
+        if (prefs && typeof prefs === "object") {
+          setAlertPrefs({
+            alert_on_blocked: prefs.alert_on_blocked ?? true,
+            alert_on_policy_violation: prefs.alert_on_policy_violation ?? true,
+            alert_on_drift: prefs.alert_on_drift ?? true,
+            alert_on_escalation: prefs.alert_on_escalation ?? true,
+          });
+        } else {
+          // Fallback: fetch alert preferences independently
+          const alertPrefsData = await edonApi.getAlertPreferences().catch(() => null);
+          if (alertPrefsData) {
+            setAlertPrefs({
+              alert_on_blocked: alertPrefsData.alert_on_blocked ?? true,
+              alert_on_policy_violation: alertPrefsData.alert_on_policy_violation ?? true,
+              alert_on_drift: alertPrefsData.alert_on_drift ?? true,
+              alert_on_escalation: alertPrefsData.alert_on_escalation ?? true,
+            });
+          }
+        }
       }
     } catch {
       // silently keep existing state
@@ -382,36 +429,267 @@ export default function Settings() {
           {/* ── CHANNELS ────────────────────────────── */}
           <section>
             <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">Channels</p>
-            <div className="glass-card px-5 py-4">
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/10">
-                    <Send className="h-3.5 w-3.5 text-foreground/80" />
+            <p className="text-xs text-muted-foreground mb-3">
+              Get updates via Telegram, Slack, or Discord. Choose what to be alerted on below.
+            </p>
+            <div className="space-y-2">
+
+              {/* Telegram */}
+              <div className="glass-card px-5 py-4 space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/10">
+                      <Send className="h-3.5 w-3.5 text-foreground/80" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">Telegram</p>
+                      <p className="text-xs text-muted-foreground">
+                        {telegramConnected ? "Receiving governance alerts" : "Get alerts via Telegram bot"}
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-sm font-medium">Telegram</p>
-                    <p className="text-xs text-muted-foreground">
-                      {telegramConnected
-                        ? "Receiving governance alerts and approvals"
-                        : "Get governance alerts sent to your Telegram"}
-                    </p>
-                  </div>
+                  {telegramConnected ? (
+                    <Badge variant="outline" className="border-emerald-500/40 text-emerald-400 bg-emerald-500/10 text-xs shrink-0">
+                      <Check className="h-3 w-3 mr-1" /> Connected
+                    </Badge>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setTelegramOpen((v) => !v)}
+                      className="text-xs text-primary hover:underline shrink-0"
+                    >
+                      {telegramOpen ? "Cancel" : "Connect →"}
+                    </button>
+                  )}
                 </div>
-                {telegramConnected ? (
-                  <Badge variant="outline" className="border-emerald-500/40 text-emerald-400 bg-emerald-500/10 text-xs shrink-0">
-                    <Check className="h-3 w-3 mr-1" /> Connected
-                  </Badge>
-                ) : (
-                  <a
-                    href="https://edoncore.com/account"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs text-primary hover:underline shrink-0"
-                  >
-                    Connect →
-                  </a>
+                {!telegramConnected && telegramOpen && (
+                  <div className="space-y-2 pt-1">
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">Bot Token</Label>
+                      <Input
+                        type="password"
+                        value={telegramToken}
+                        onChange={(e) => setTelegramToken(e.target.value)}
+                        placeholder="123456789:AAF..."
+                        className="bg-secondary/50 text-sm"
+                      />
+                      <p className="text-xs text-muted-foreground/60">From @BotFather on Telegram</p>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">Chat ID</Label>
+                      <Input
+                        value={telegramChatId}
+                        onChange={(e) => setTelegramChatId(e.target.value)}
+                        placeholder="-1001234567890"
+                        className="bg-secondary/50 text-sm"
+                      />
+                      <p className="text-xs text-muted-foreground/60">Your chat or group ID</p>
+                    </div>
+                    <Button
+                      size="sm"
+                      disabled={!telegramToken || !telegramChatId || connectingChannel === "telegram"}
+                      onClick={async () => {
+                        setConnectingChannel("telegram");
+                        try {
+                          await edonApi.connectTelegram(telegramToken, telegramChatId);
+                          setTelegramConnected(true);
+                          setTelegramOpen(false);
+                          setTelegramToken("");
+                          setTelegramChatId("");
+                          toast({ title: "Telegram connected", description: "You'll receive alerts via your bot." });
+                        } catch (err: unknown) {
+                          toast({ title: "Failed", description: err instanceof Error ? err.message : "Could not connect.", variant: "destructive" });
+                        } finally {
+                          setConnectingChannel(null);
+                        }
+                      }}
+                      className="w-full gap-2"
+                    >
+                      {connectingChannel === "telegram" ? (
+                        <><div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" /> Connecting…</>
+                      ) : "Save Telegram"}
+                    </Button>
+                  </div>
                 )}
               </div>
+
+              {/* Slack */}
+              <div className="glass-card px-5 py-4 space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/10">
+                      <Send className="h-3.5 w-3.5 text-foreground/80" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">Slack</p>
+                      <p className="text-xs text-muted-foreground">
+                        {slackConnected ? "Receiving governance alerts" : "Get alerts posted to a Slack channel"}
+                      </p>
+                    </div>
+                  </div>
+                  {slackConnected ? (
+                    <Badge variant="outline" className="border-emerald-500/40 text-emerald-400 bg-emerald-500/10 text-xs shrink-0">
+                      <Check className="h-3 w-3 mr-1" /> Connected
+                    </Badge>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setSlackOpen((v) => !v)}
+                      className="text-xs text-primary hover:underline shrink-0"
+                    >
+                      {slackOpen ? "Cancel" : "Connect →"}
+                    </button>
+                  )}
+                </div>
+                {!slackConnected && slackOpen && (
+                  <div className="space-y-2 pt-1">
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">Incoming Webhook URL</Label>
+                      <Input
+                        type="password"
+                        value={slackWebhook}
+                        onChange={(e) => setSlackWebhook(e.target.value)}
+                        placeholder="https://hooks.slack.com/services/..."
+                        className="bg-secondary/50 text-sm"
+                      />
+                      <p className="text-xs text-muted-foreground/60">From your Slack app's Incoming Webhooks settings</p>
+                    </div>
+                    <Button
+                      size="sm"
+                      disabled={!slackWebhook || connectingChannel === "slack"}
+                      onClick={async () => {
+                        setConnectingChannel("slack");
+                        try {
+                          await edonApi.connectSlack(slackWebhook);
+                          setSlackConnected(true);
+                          setSlackOpen(false);
+                          setSlackWebhook("");
+                          toast({ title: "Slack connected", description: "You'll receive alerts in your Slack channel." });
+                        } catch (err: unknown) {
+                          toast({ title: "Failed", description: err instanceof Error ? err.message : "Could not connect.", variant: "destructive" });
+                        } finally {
+                          setConnectingChannel(null);
+                        }
+                      }}
+                      className="w-full gap-2"
+                    >
+                      {connectingChannel === "slack" ? (
+                        <><div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" /> Connecting…</>
+                      ) : "Save Slack"}
+                    </Button>
+                  </div>
+                )}
+              </div>
+
+              {/* Discord */}
+              <div className="glass-card px-5 py-4 space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/10">
+                      <Send className="h-3.5 w-3.5 text-foreground/80" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">Discord</p>
+                      <p className="text-xs text-muted-foreground">
+                        {discordConnected ? "Receiving governance alerts" : "Get alerts posted to a Discord channel"}
+                      </p>
+                    </div>
+                  </div>
+                  {discordConnected ? (
+                    <Badge variant="outline" className="border-emerald-500/40 text-emerald-400 bg-emerald-500/10 text-xs shrink-0">
+                      <Check className="h-3 w-3 mr-1" /> Connected
+                    </Badge>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setDiscordOpen((v) => !v)}
+                      className="text-xs text-primary hover:underline shrink-0"
+                    >
+                      {discordOpen ? "Cancel" : "Connect →"}
+                    </button>
+                  )}
+                </div>
+                {!discordConnected && discordOpen && (
+                  <div className="space-y-2 pt-1">
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">Webhook URL</Label>
+                      <Input
+                        type="password"
+                        value={discordWebhook}
+                        onChange={(e) => setDiscordWebhook(e.target.value)}
+                        placeholder="https://discord.com/api/webhooks/..."
+                        className="bg-secondary/50 text-sm"
+                      />
+                      <p className="text-xs text-muted-foreground/60">From your Discord server's channel settings → Integrations</p>
+                    </div>
+                    <Button
+                      size="sm"
+                      disabled={!discordWebhook || connectingChannel === "discord"}
+                      onClick={async () => {
+                        setConnectingChannel("discord");
+                        try {
+                          await edonApi.connectDiscord(discordWebhook);
+                          setDiscordConnected(true);
+                          setDiscordOpen(false);
+                          setDiscordWebhook("");
+                          toast({ title: "Discord connected", description: "You'll receive alerts in your Discord channel." });
+                        } catch (err: unknown) {
+                          toast({ title: "Failed", description: err instanceof Error ? err.message : "Could not connect.", variant: "destructive" });
+                        } finally {
+                          setConnectingChannel(null);
+                        }
+                      }}
+                      className="w-full gap-2"
+                    >
+                      {connectingChannel === "discord" ? (
+                        <><div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" /> Connecting…</>
+                      ) : "Save Discord"}
+                    </Button>
+                  </div>
+                )}
+              </div>
+
+            </div>
+          </section>
+
+          {/* ── ALERT PREFERENCES ────────────────────── */}
+          <section>
+            <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">Alert preferences</p>
+            <p className="text-xs text-muted-foreground mb-3">
+              Choose what to be notified about (via your connected channels).
+            </p>
+            <div className="glass-card px-5 py-4 space-y-4">
+              {[
+                { key: "alert_on_blocked" as const, label: "Blocked decisions", desc: "When a decision is blocked by policy" },
+                { key: "alert_on_policy_violation" as const, label: "Policy violations", desc: "When a policy rule is violated" },
+                { key: "alert_on_drift" as const, label: "Drift / anomalies", desc: "When behavior drifts from baseline" },
+                { key: "alert_on_escalation" as const, label: "Escalations", desc: "When an action requires human approval" },
+              ].map(({ key, label, desc }) => (
+                <div key={key} className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium">{label}</p>
+                    <p className="text-xs text-muted-foreground">{desc}</p>
+                  </div>
+                  <Switch
+                    checked={!!alertPrefs[key]}
+                    disabled={savingAlertPrefs}
+                    onCheckedChange={async (checked) => {
+                      const next = { ...alertPrefs, [key]: checked };
+                      setAlertPrefs(next);
+                      setSavingAlertPrefs(true);
+                      try {
+                        await edonApi.patchAlertPreferences({ [key]: checked });
+                        toast({ title: "Saved", description: "Alert preferences updated." });
+                      } catch {
+                        setAlertPrefs(alertPrefs);
+                        toast({ title: "Error", description: "Could not save preferences.", variant: "destructive" });
+                      } finally {
+                        setSavingAlertPrefs(false);
+                      }
+                    }}
+                  />
+                </div>
+              ))}
             </div>
           </section>
 

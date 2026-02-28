@@ -255,53 +255,13 @@ export default function Pricing() {
             })()}
           </div>
 
-          {/* Enterprise Volume Table */}
-          <div className="glass-card p-6">
-            <h2 className="font-semibold mb-1">Enterprise — Built for Scale</h2>
-            <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm text-muted-foreground mb-4">
-              <span>+ <strong className="text-foreground">$15K/mo</strong> enterprise platform (unlimited agents, SLA, dedicated support)</span>
-              <span>+ <strong className="text-foreground">$10K/mo</strong> compliance suite (EU AI Act, NIST, SOC 2, ISO 42001)</span>
-              <span>+ <strong className="text-foreground">Custom</strong> EDON Core predictive intelligence (quoted per engagement)</span>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="text-sm w-full max-w-md">
-                <thead>
-                  <tr className="border-b border-white/10">
-                    <th className="text-left py-2 text-muted-foreground font-medium">
-                      Monthly volume
-                    </th>
-                    <th className="text-left py-2 text-muted-foreground font-medium">
-                      Price / decision
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="text-muted-foreground">
-                  {[
-                    ["0 – 1B/mo", "$0.0001"],
-                    ["1B – 10B/mo", "$0.000075"],
-                    ["10B – 100B/mo", "$0.00005"],
-                    ["100B – 1T/mo", "$0.000025"],
-                    ["1T+/mo", "$0.00001"],
-                  ].map(([vol, price]) => (
-                    <tr key={vol} className="border-b border-white/5">
-                      <td className="py-2">{vol}</td>
-                      <td className="py-2 font-mono">{price}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <p className="text-xs text-muted-foreground mt-4">
-              Contact{" "}
-              <a
-                href="mailto:sales@edoncore.com"
-                className="text-primary hover:underline"
-              >
-                sales@edoncore.com
-              </a>{" "}
-              for a custom volume agreement and pilot program.
-            </p>
-          </div>
+          <p className="text-sm text-muted-foreground">
+            Questions or need a custom plan? Contact{" "}
+            <a href="mailto:sales@edoncore.com" className="text-primary hover:underline">
+              sales@edoncore.com
+            </a>
+            .
+          </p>
         </motion.div>
       </main>
     </div>

@@ -12,7 +12,6 @@ import Audit from "./pages/Audit";
 import Policies from "./pages/Policies";
 import Settings from "./pages/Settings";
 import Pricing from "./pages/Pricing";
-import Integrations from "./pages/Integrations";
 import Quickstart from "./pages/Quickstart";
 import NotFound from "./pages/NotFound";
 import { AccessGate } from "@/components/AccessGate";
@@ -68,7 +67,6 @@ const AppRoutes = () => {
       <Route path="/policies" element={<Policies />} />
       <Route path="/settings" element={<Settings />} />
       <Route path="/pricing" element={<Pricing />} />
-      <Route path="/integrations" element={<Integrations />} />
       <Route path="/quickstart" element={<Quickstart />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
