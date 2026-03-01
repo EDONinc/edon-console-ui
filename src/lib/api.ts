@@ -182,7 +182,14 @@ class EdonApiClient {
 
       if (!response.ok) {
         if (response.status === 401) {
+          // Token is stale or revoked — clear it so the user isn't stuck
+          localStorage.removeItem('edon_token');
+          localStorage.removeItem('edon_session_token');
+          localStorage.removeItem('edon_api_key');
           throw new Error('Authentication required. Set your token in Settings.');
+        }
+        if (response.status === 403) {
+          throw new Error('forbidden');
         }
         const body = await response.text();
         throw new Error(
@@ -455,15 +462,23 @@ class EdonApiClient {
     const query = searchParams.toString();
     // Gateway returns { events: [...], total: number, limit: number }
     // Map to UI format { records: [...], total: number }
-    const response = await this.request<{ events: Decision[]; total: number; limit: number }>(
-      `/audit/query${query ? `?${query}` : ''}`
-    );
-    return {
-      records: Array.isArray(response?.events)
-        ? response.events.map((r) => normalizeDecision(r))
-        : [],
-      total: response.total
-    };
+    try {
+      const response = await this.request<{ events: Decision[]; total: number; limit: number }>(
+        `/audit/query${query ? `?${query}` : ''}`
+      );
+      return {
+        records: Array.isArray(response?.events)
+          ? response.events.map((r) => normalizeDecision(r))
+          : [],
+        total: response.total
+      };
+    } catch (err) {
+      // 403 = agent role lacks 'audit' permission — return empty rather than error
+      if (err instanceof Error && err.message === 'forbidden') {
+        return { records: [], total: 0 };
+      }
+      throw err;
+    }
   }
 
   async getTimeSeriesData(days: number = 7) {

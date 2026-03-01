@@ -16,11 +16,14 @@ function getToken(): string {
 
 async function apiFetch(path: string, options: RequestInit = {}): Promise<Response> {
   const token = getToken();
+  if (!token) {
+    throw new Error("Authentication required. Set your token in Settings.");
+  }
   return fetch(`${BASE_URL}${path}`, {
     ...options,
     headers: {
       "Content-Type": "application/json",
-      ...(token ? { "X-EDON-TOKEN": token } : {}),
+      "X-EDON-TOKEN": token,
       ...options.headers,
     },
   });
@@ -91,7 +94,10 @@ export const edonApi = {
     const params = new URLSearchParams({ limit: String(limit) });
     if (agentId) params.set("agent_id", agentId);
     const res = await apiFetch(`/audit/query?${params}`);
-    if (!res.ok) throw new Error(`Failed to fetch audit events: ${res.status}`);
+    if (!res.ok) {
+      if (res.status === 403) return []; // agent role lacks 'audit' permission
+      throw new Error(`Failed to fetch audit events: ${res.status}`);
+    }
     const data = await res.json();
     return data.events || [];
   },
