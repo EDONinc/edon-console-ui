@@ -46,6 +46,7 @@ const verdictClass = (verdict?: string) => {
 export default function Audit() {
   const [records, setRecords] = useState<Decision[]>([]);
   const [loading, setLoading] = useState(true);
+  const [auditForbidden, setAuditForbidden] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<Decision | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [page, setPage] = useState(1);
@@ -61,6 +62,7 @@ export default function Audit() {
   const [timeRangeEnd, setTimeRangeEnd] = useState('');
 
   const fetchAudit = useCallback(async () => {
+    if (auditForbidden) return;
     setLoading(true);
     try {
       const params: { limit?: number; verdict?: string; agent_id?: string; intent_id?: string } = {};
@@ -68,9 +70,14 @@ export default function Audit() {
       if (agentFilter) params.agent_id = agentFilter;
       if (intentIdFilter) params.intent_id = intentIdFilter;
       params.limit = 1000; // Get more results for client-side filtering
-      
+
       const result = await edonApi.getAudit(params);
-      
+
+      if (result === null) {
+        setAuditForbidden(true);
+        return;
+      }
+
       // Client-side filtering for policy_version and time range
       let filtered = result.records;
       
@@ -108,7 +115,7 @@ export default function Audit() {
     } finally {
       setLoading(false);
     }
-  }, [verdictFilter, agentFilter, intentIdFilter, policyVersionFilter, timeRangeStart, timeRangeEnd, toast]);
+  }, [verdictFilter, agentFilter, intentIdFilter, policyVersionFilter, timeRangeStart, timeRangeEnd, toast, auditForbidden]);
 
   useEffect(() => {
     fetchAudit();
@@ -169,6 +176,20 @@ export default function Audit() {
     setSelectedRecord(record);
     setModalOpen(true);
   };
+
+  if (auditForbidden) {
+    return (
+      <div className="min-h-screen">
+        <TopNav />
+        <main className="container mx-auto px-6 py-8">
+          <div className="glass-card p-8 text-center text-muted-foreground">
+            <p className="text-sm">Audit access requires an API key with <strong>operator</strong> or <strong>admin</strong> role.</p>
+            <p className="text-xs mt-2">Generate a new key with elevated permissions or contact your administrator.</p>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen">

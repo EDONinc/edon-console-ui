@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { edonApi, Decision } from '@/lib/api';
 import { Badge } from '@/components/ui/badge';
@@ -28,6 +28,7 @@ export function DecisionStreamTable({
   const [decisions, setDecisions] = useState<Decision[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAuditFallback, setShowAuditFallback] = useState(false);
+  const auditForbiddenRef = useRef(false);
   const { toast } = useToast();
 
   const fetchDecisions = useCallback(async () => {
@@ -37,11 +38,17 @@ export function DecisionStreamTable({
       if (list.length > 0) {
         setDecisions(list);
         setShowAuditFallback(false);
-      } else {
+      } else if (!auditForbiddenRef.current) {
         const audit = await edonApi.getAudit({ limit });
-        const records = Array.isArray(audit?.records) ? audit.records : [];
-        setDecisions(records);
-        setShowAuditFallback(records.length > 0);
+        if (audit === null) {
+          // 403 — this token lacks 'audit' permission; stop trying on every poll
+          auditForbiddenRef.current = true;
+          setShowAuditFallback(false);
+        } else {
+          const records = Array.isArray(audit?.records) ? audit.records : [];
+          setDecisions(records);
+          setShowAuditFallback(records.length > 0);
+        }
       }
     } catch (error) {
       toast({

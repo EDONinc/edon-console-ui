@@ -473,9 +473,10 @@ class EdonApiClient {
         total: response.total
       };
     } catch (err) {
-      // 403 = agent role lacks 'audit' permission — return empty rather than error
+      // 403 = agent role lacks 'audit' permission — return null so callers
+      // can distinguish "no permission" from "empty result" and stop retrying
       if (err instanceof Error && err.message === 'forbidden') {
-        return { records: [], total: 0 };
+        return null;
       }
       throw err;
     }
