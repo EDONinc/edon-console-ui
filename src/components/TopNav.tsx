@@ -1,6 +1,6 @@
 import { NavLink, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ShieldCheck, Gauge, ListChecks, FileSearch, Settings2, KeyRound, CreditCard } from 'lucide-react';
+import { ShieldCheck, Gauge, ListChecks, FileSearch, Settings2, KeyRound, CreditCard, LogOut } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { edonApi } from '@/lib/api';
 import { Badge } from '@/components/ui/badge';
@@ -96,10 +96,24 @@ export function TopNav() {
             {/* Status Badges */}
             <div className="flex items-center gap-2">
               {hasToken && (
-                <Badge variant="outline" className="border-sky-500/40 text-sky-300 bg-sky-500/10 flex items-center gap-1.5 text-xs">
-                  <KeyRound className="w-3 h-3" />
-                  <span className="hidden sm:inline">Signed in</span>
-                </Badge>
+                <>
+                  <Badge variant="outline" className="border-sky-500/40 text-sky-300 bg-sky-500/10 flex items-center gap-1.5 text-xs">
+                    <KeyRound className="w-3 h-3" />
+                    <span className="hidden sm:inline">Signed in</span>
+                  </Badge>
+                  <button
+                    title="Sign out"
+                    onClick={() => {
+                      localStorage.removeItem('edon_token');
+                      localStorage.removeItem('edon_api_key');
+                      localStorage.removeItem('edon_session_token');
+                      window.dispatchEvent(new Event('edon-auth-updated'));
+                    }}
+                    className="flex items-center justify-center w-7 h-7 rounded-full border border-white/10 bg-white/5 text-muted-foreground hover:text-red-400 hover:border-red-500/40 hover:bg-red-500/10 transition-colors"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                  </button>
+                </>
               )}
               <Badge
                 variant="outline"
