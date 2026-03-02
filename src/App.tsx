@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { edonApi } from "@/lib/api";
 import Dashboard from "./pages/Dashboard";
 import Decisions from "./pages/Decisions";
 import Audit from "./pages/Audit";
@@ -141,6 +142,24 @@ const App = () => {
       const nextUrl = `${window.location.pathname}${cleaned ? `?${cleaned}` : ""}`;
       window.history.replaceState({}, "", nextUrl);
       window.dispatchEvent(new Event("edon-auth-updated"));
+    }
+
+    // Whenever we have a token, sync email/plan from gateway so agent UI matches marketing site
+    const tokenForSync =
+      safeToken ||
+      (localStorage.getItem("edon_token") ||
+        localStorage.getItem("edon_api_key") ||
+        localStorage.getItem("edon_session_token") ||
+        "").trim();
+    if (tokenForSync && /^[A-Za-z0-9._-]{20,}$/.test(tokenForSync)) {
+      edonApi
+        .getSession()
+        .then((session) => {
+          if (session?.email) localStorage.setItem("edon_user_email", session.email);
+          if (session?.plan) localStorage.setItem("edon_plan", session.plan);
+          window.dispatchEvent(new Event("edon-auth-updated"));
+        })
+        .catch(() => {});
     }
   }, []);
 
