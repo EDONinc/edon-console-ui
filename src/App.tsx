@@ -83,6 +83,7 @@ const App = () => {
     const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
     const baseUrl = (params.get("base") || params.get("gateway") || hashParams.get("base") || "").trim();
     const token = (params.get("token") || hashParams.get("token") || "").trim();
+    const email = (params.get("email") || hashParams.get("email") || "").trim();
     localStorage.setItem("edon_mock_mode", "false");
 
     const sanitizeBaseUrl = (value: string) => {
@@ -108,11 +109,27 @@ const App = () => {
       localStorage.setItem("edon_mock_mode", "false");
     }
 
+    if (email) {
+      localStorage.setItem("edon_user_email", email);
+    }
+
     if (safeToken) {
+      const existingToken = localStorage.getItem("edon_token") || "";
+      const tokenChanged = existingToken && existingToken !== safeToken;
       localStorage.setItem("edon_token", safeToken);
       localStorage.setItem("edon_session_token", safeToken);
       localStorage.setItem("edon_api_key", safeToken);
       localStorage.setItem("edon_mock_mode", "false");
+
+      // Different account — hard reload so all components fetch fresh data
+      if (tokenChanged) {
+        params.delete("base");
+        params.delete("gateway");
+        params.delete("token");
+        const cleaned = params.toString();
+        window.location.replace(`${window.location.pathname}${cleaned ? `?${cleaned}` : ""}`);
+        return;
+      }
     }
 
     if (safeBaseUrl || safeToken) {
