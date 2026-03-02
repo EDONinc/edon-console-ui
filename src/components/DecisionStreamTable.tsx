@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { edonApi, Decision } from '@/lib/api';
 import { Badge } from '@/components/ui/badge';
@@ -7,6 +7,10 @@ import { useToast } from '@/hooks/use-toast';
 import { Link } from 'react-router-dom';
 
 const POLL_MS = 8000; // 8 seconds polling interval
+
+// Module-level flag — persists across component remounts so we never retry
+// audit after the first 403 (agent tokens lack the 'audit' permission).
+let auditForbidden = false;
 
 interface DecisionStreamTableProps {
   onSelectDecision?: (decision: Decision) => void;
@@ -28,7 +32,6 @@ export function DecisionStreamTable({
   const [decisions, setDecisions] = useState<Decision[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAuditFallback, setShowAuditFallback] = useState(false);
-  const auditForbiddenRef = useRef(false);
   const { toast } = useToast();
 
   const fetchDecisions = useCallback(async () => {
@@ -38,11 +41,11 @@ export function DecisionStreamTable({
       if (list.length > 0) {
         setDecisions(list);
         setShowAuditFallback(false);
-      } else if (!auditForbiddenRef.current) {
+      } else if (!auditForbidden) {
         const audit = await edonApi.getAudit({ limit });
         if (audit === null) {
           // 403 — this token lacks 'audit' permission; stop trying on every poll
-          auditForbiddenRef.current = true;
+          auditForbidden = true;
           setShowAuditFallback(false);
         } else {
           const records = Array.isArray(audit?.records) ? audit.records : [];
