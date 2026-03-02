@@ -5,11 +5,12 @@ import { edonApi, PlanInfo } from "@/lib/edonApi";
 import { Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-/** Stripe checkout URLs per plan (env overrides optional). */
-const STRIPE_LINKS: Record<string, string> = {
-  scale: (import.meta.env.VITE_STRIPE_LINK_SCALE as string) || "https://checkout.edoncore.com/b/3cI6oGeKAehceAq5fafIs0a",
-  pro: (import.meta.env.VITE_STRIPE_LINK_PRO as string) || "https://checkout.edoncore.com/b/9B67sK5a04GC4ZQ7nifIs09",
-};
+/** Marketing site: pricing (pay here) and account (land after payment). */
+const MARKETING_BASE =
+  (import.meta.env.VITE_MARKETING_URL as string) || "https://edoncore.com";
+const MARKETING_PRICING = `${MARKETING_BASE}/pricing`;
+const MARKETING_ACCOUNT = `${MARKETING_BASE}/account`;
+const MARKETING_CONTACT = `${MARKETING_BASE}/contact`;
 
 const ENTERPRISE_PLAN: PlanInfo = {
   name: "Enterprise",
@@ -69,7 +70,6 @@ function fmtRetention(days: number | null) {
 
 export default function Pricing() {
   const [plans, setPlans] = useState<PlanInfo[]>(FALLBACK_PLANS);
-  const [checkingOut, setCheckingOut] = useState<string | null>(null);
 
   useEffect(() => {
     edonApi
@@ -84,50 +84,14 @@ export default function Pricing() {
       .catch(() => {});
   }, []);
 
-  const safeRedirect = (url: string) => {
-    try {
-      const parsed = new URL(url);
-      const allowed =
-        parsed.hostname === "checkout.stripe.com" ||
-        parsed.hostname === "buy.stripe.com" ||
-        parsed.hostname === "checkout.edoncore.com" ||
-        parsed.hostname === "billing.stripe.com";
-      if (allowed) window.location.href = url;
-    } catch {
-      // invalid URL, do nothing
-    }
-  };
-
-  function getStripeLink(plan: PlanInfo): string | null {
-    if (plan.slug === "free" || plan.contact_us) return null;
-    const link = STRIPE_LINKS[plan.slug];
-    return link && link.trim() ? link.trim() : null;
-  }
-
-  async function handleUpgrade(plan: PlanInfo) {
+  function handleUpgrade(plan: PlanInfo) {
     if (plan.slug === "free") return;
     if (plan.contact_us) {
-      window.location.href = "mailto:sales@edoncore.com?subject=Enterprise Inquiry";
+      window.location.href = MARKETING_CONTACT;
       return;
     }
-    const stripeLink = getStripeLink(plan);
-    if (stripeLink) {
-      safeRedirect(stripeLink);
-      return;
-    }
-    setCheckingOut(plan.slug);
-    try {
-      const result = await edonApi.checkout(plan.slug);
-      if (result.checkout_url) {
-        safeRedirect(result.checkout_url);
-      } else {
-        alert(result.message || "Contact sales@edoncore.com to upgrade.");
-      }
-    } catch {
-      alert("Error starting checkout. Contact sales@edoncore.com");
-    } finally {
-      setCheckingOut(null);
-    }
+    // Send users to marketing site to pay; after payment they land on account page there
+    window.location.href = MARKETING_PRICING;
   }
 
   return (
@@ -217,17 +181,12 @@ export default function Pricing() {
                   {/* CTA */}
                   <Button
                     onClick={() => handleUpgrade(plan)}
-                    disabled={checkingOut === plan.slug || plan.slug === "free"}
+                    disabled={plan.slug === "free"}
                     variant={plan.slug === "free" ? "outline" : isHighlighted ? "default" : "outline"}
                     size="sm"
                     className="w-full"
                   >
-                    {checkingOut === plan.slug ? (
-                      <span className="flex items-center gap-2">
-                        <span className="h-3 w-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                        Loading…
-                      </span>
-                    ) : plan.slug === "free" ? (
+                    {plan.slug === "free" ? (
                       "Current plan"
                     ) : plan.slug === "scale" ? (
                       "Get Scale"
@@ -247,9 +206,9 @@ export default function Pricing() {
           </div>
 
           <p className="text-sm text-muted-foreground">
-            Questions or need a custom plan? Contact{" "}
-            <a href="mailto:sales@edoncore.com" className="text-primary hover:underline">
-              sales@edoncore.com
+            Questions or need a custom plan?{" "}
+            <a href={MARKETING_CONTACT} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+              Contact us
             </a>
             .
           </p>
