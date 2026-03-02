@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { edonApi } from "@/lib/api";
 
 const isLikelyToken = (s: string) =>
   /^(edon_[A-Za-z0-9._-]{16,}|[a-f0-9]{64}|[a-f0-9]{128}|[A-Za-z0-9._-]{24,})$/i.test(s);
@@ -8,8 +9,9 @@ export const AccessGate = () => {
   const [showManual, setShowManual] = useState(false);
   const [key, setKey] = useState("");
   const [error, setError] = useState("");
+  const [connecting, setConnecting] = useState(false);
 
-  const handleConnect = () => {
+  const handleConnect = async () => {
     const trimmed = key.trim();
     if (!trimmed) {
       setError("Please enter your access key.");
@@ -19,9 +21,26 @@ export const AccessGate = () => {
       setError("Key format doesn't look right. Check and try again.");
       return;
     }
+    setConnecting(true);
     localStorage.setItem("edon_token", trimmed);
     localStorage.setItem("edon_api_key", trimmed);
     localStorage.setItem("edon_session_token", trimmed);
+
+    try {
+      // Verify the key and pull email/plan in one shot — surfaces bad keys early
+      const session = await edonApi.getSession();
+      if (session?.email) localStorage.setItem("edon_user_email", session.email);
+      if (session?.plan) localStorage.setItem("edon_plan", session.plan);
+    } catch {
+      // 401 → api.ts already cleared the token keys; show an error and stay
+      if (!localStorage.getItem("edon_token")) {
+        setError("Key not recognised by the gateway. Check and try again.");
+        setConnecting(false);
+        return;
+      }
+      // Network/other error — proceed; Settings will retry on load
+    }
+
     window.dispatchEvent(new Event("edon-auth-updated"));
   };
 
@@ -60,10 +79,11 @@ export const AccessGate = () => {
             />
             {error && <p className="text-xs text-red-400">{error}</p>}
             <div className="flex gap-2">
-              <Button className="flex-1" onClick={handleConnect}>
-                Connect
+              <Button className="flex-1 gap-2" onClick={handleConnect} disabled={connecting}>
+                {connecting && <span className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />}
+                {connecting ? "Connecting…" : "Connect"}
               </Button>
-              <Button variant="outline" onClick={() => { setShowManual(false); setKey(""); setError(""); }}>
+              <Button variant="outline" onClick={() => { setShowManual(false); setKey(""); setError(""); }} disabled={connecting}>
                 Back
               </Button>
             </div>

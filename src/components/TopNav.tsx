@@ -107,7 +107,9 @@ export function TopNav() {
                       localStorage.removeItem('edon_token');
                       localStorage.removeItem('edon_api_key');
                       localStorage.removeItem('edon_session_token');
-                      window.dispatchEvent(new Event('edon-auth-updated'));
+                      localStorage.removeItem('edon_user_email');
+                      localStorage.removeItem('edon_plan');
+                      window.location.replace('/');
                     }}
                     className="flex items-center justify-center w-7 h-7 rounded-full border border-white/10 bg-white/5 text-muted-foreground hover:text-red-400 hover:border-red-500/40 hover:bg-red-500/10 transition-colors"
                   >
