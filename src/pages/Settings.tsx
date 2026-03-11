@@ -702,9 +702,9 @@ export default function Settings() {
                   ? "You're on the free plan — 50K decisions/mo, 3 agents. Upgrade to Scale for 5M decisions and 100 agents."
                   : "Upgrade to Pro for 25M decisions, 1,000 agents, and the full compliance suite."}
               </p>
-              <Link to="/pricing" className="text-xs font-medium text-primary hover:underline">
+              <a href="https://edoncore.com/pricing" target="_blank" rel="noopener noreferrer" className="text-xs font-medium text-primary hover:underline">
                 See all plans →
-              </Link>
+              </a>
             </div>
           )}
 

@@ -12,7 +12,6 @@ import Decisions from "./pages/Decisions";
 import Audit from "./pages/Audit";
 import Policies from "./pages/Policies";
 import Settings from "./pages/Settings";
-import Pricing from "./pages/Pricing";
 import Quickstart from "./pages/Quickstart";
 import NotFound from "./pages/NotFound";
 import { AccessGate } from "@/components/AccessGate";
@@ -21,13 +20,17 @@ const queryClient = new QueryClient();
 
 const AppRoutes = () => {
   const location = useLocation();
-  const [hasToken, setHasToken] = useState(() => {
-    if (typeof window === "undefined") return false;
-    return Boolean(
+  const _hasAnyToken = () =>
+    Boolean(
       localStorage.getItem("edon_token") ||
       localStorage.getItem("edon_api_key") ||
-      localStorage.getItem("edon_session_token")
+      localStorage.getItem("edon_session_token") ||
+      (import.meta.env.MODE !== "production" && import.meta.env.VITE_EDON_API_TOKEN)
     );
+
+  const [hasToken, setHasToken] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return _hasAnyToken();
   });
   const [mockMode, setMockMode] = useState(false);
 
@@ -35,11 +38,7 @@ const AppRoutes = () => {
     if (typeof window === "undefined") return;
 
     const refresh = () => {
-      setHasToken(Boolean(
-        localStorage.getItem("edon_token") ||
-        localStorage.getItem("edon_api_key") ||
-        localStorage.getItem("edon_session_token")
-      ));
+      setHasToken(_hasAnyToken());
       setMockMode(false);
     };
 
@@ -56,7 +55,7 @@ const AppRoutes = () => {
     };
   }, [location.pathname]);
 
-  if (!hasToken && location.pathname !== "/settings" && location.pathname !== "/quickstart" && location.pathname !== "/pricing") {
+  if (!hasToken && location.pathname !== "/settings" && location.pathname !== "/quickstart") {
     return <AccessGate />;
   }
 
@@ -67,7 +66,6 @@ const AppRoutes = () => {
       <Route path="/audit" element={<Audit />} />
       <Route path="/policies" element={<Policies />} />
       <Route path="/settings" element={<Settings />} />
-      <Route path="/pricing" element={<Pricing />} />
       <Route path="/quickstart" element={<Quickstart />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
@@ -144,6 +142,30 @@ const App = () => {
       window.dispatchEvent(new Event("edon-auth-updated"));
     }
 
+    // Seed localStorage from env vars if no token is stored yet (local dev / demo)
+    if (import.meta.env.MODE !== "production") {
+      const envToken = (import.meta.env.VITE_EDON_API_TOKEN || "").trim();
+      const envBase = (import.meta.env.VITE_EDON_GATEWAY_URL || "").trim();
+      const storedToken = (
+        localStorage.getItem("edon_token") ||
+        localStorage.getItem("edon_api_key") ||
+        localStorage.getItem("edon_session_token") ||
+        ""
+      ).trim();
+      if (!storedToken && envToken) {
+        localStorage.setItem("edon_token", envToken);
+        localStorage.setItem("edon_api_key", envToken);
+        localStorage.setItem("edon_session_token", envToken);
+        localStorage.setItem("edon_mock_mode", "false");
+        if (envBase) {
+          localStorage.setItem("edon_api_base", envBase);
+          localStorage.setItem("EDON_BASE_URL", envBase);
+          localStorage.setItem("edon_base_url", envBase);
+        }
+        window.dispatchEvent(new Event("edon-auth-updated"));
+      }
+    }
+
     // Whenever we have a token, sync email/plan from gateway so agent UI matches marketing site
     const tokenForSync =
       safeToken ||
@@ -158,6 +180,18 @@ const App = () => {
           if (session?.email) localStorage.setItem("edon_user_email", session.email);
           if (session?.plan) localStorage.setItem("edon_plan", session.plan);
           window.dispatchEvent(new Event("edon-auth-updated"));
+        })
+        .catch(() => {});
+
+      // Sync active intent_id from gateway so demo panel and decision filters work
+      edonApi
+        .getHealth()
+        .then((h) => {
+          const intentId = (h as unknown as { governor?: { active_intent_id?: string } })
+            ?.governor?.active_intent_id;
+          if (intentId && !localStorage.getItem("edon_active_intent_id")) {
+            localStorage.setItem("edon_active_intent_id", intentId);
+          }
         })
         .catch(() => {});
     }

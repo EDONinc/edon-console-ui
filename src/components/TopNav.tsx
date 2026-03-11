@@ -1,6 +1,6 @@
 import { NavLink, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ShieldCheck, Gauge, ListChecks, FileSearch, Settings2, KeyRound, CreditCard, LogOut } from 'lucide-react';
+import { ShieldCheck, Gauge, ListChecks, FileSearch, Settings2, KeyRound, LogOut } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { edonApi } from '@/lib/api';
 import { Badge } from '@/components/ui/badge';
@@ -10,14 +10,20 @@ const navItems = [
   { to: '/decisions', label: 'Decisions', icon: ListChecks },
   { to: '/audit', label: 'Audit', icon: FileSearch },
   { to: '/policies', label: 'Policies', icon: ShieldCheck },
-  { to: '/pricing', label: 'Pricing', icon: CreditCard },
   { to: '/settings', label: 'Settings', icon: Settings2 },
 ];
 
 export function TopNav() {
   const location = useLocation();
   const [isConnected, setIsConnected] = useState(true);
-  const [hasToken, setHasToken] = useState(() => typeof window !== 'undefined' && !!localStorage.getItem('edon_token'));
+  const _hasAnyToken = () =>
+    Boolean(
+      localStorage.getItem('edon_token') ||
+      localStorage.getItem('edon_api_key') ||
+      localStorage.getItem('edon_session_token') ||
+      (import.meta.env.MODE !== 'production' && import.meta.env.VITE_EDON_API_TOKEN)
+    );
+  const [hasToken, setHasToken] = useState(() => typeof window !== 'undefined' && _hasAnyToken());
 
   useEffect(() => {
     const checkConnection = async () => {
@@ -34,14 +40,14 @@ export function TopNav() {
     
     // Listen for storage changes (when mock mode is toggled in Settings)
     const handleStorageChange = () => {
-      setHasToken(typeof window !== 'undefined' && !!localStorage.getItem('edon_token'));
+      setHasToken(typeof window !== 'undefined' && _hasAnyToken());
     };
     window.addEventListener('storage', handleStorageChange);
     window.addEventListener('edon-auth-updated', handleStorageChange as EventListener);
 
     const interval = setInterval(() => {
       checkConnection();
-      setHasToken(typeof window !== 'undefined' && !!localStorage.getItem('edon_token'));
+      setHasToken(typeof window !== 'undefined' && _hasAnyToken());
     }, 30000);
     
     return () => {
