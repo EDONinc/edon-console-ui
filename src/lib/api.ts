@@ -119,25 +119,45 @@ const generateMockBlockReasons = () => [
   { reason: 'Database write denied', count: 12 },
 ];
 
-const normalizeDecision = (decision: Decision): Decision => {
-  const decisionShape = decision as {
-    tool?: unknown;
-    action?: { op?: unknown; tool?: unknown };
-    action_id?: unknown;
-  };
-  const rawTool =
-    decisionShape.tool ??
-    decisionShape.action?.op ??
-    decisionShape.action?.tool ??
-    decisionShape.action_id ??
-    null;
+const VERDICT_MAP: Record<string, string> = {
+  ALLOW: "allowed", BLOCK: "blocked", ESCALATE: "confirm", DEGRADE: "confirm", PAUSE: "confirm",
+};
 
+const normalizeDecision = (decision: Decision): Decision => {
+  const raw = decision as Record<string, unknown>;
+
+  // Detect audit event format (nested 'action' + 'decision' sub-objects from /audit/query)
+  const actionSub = raw.action as { id?: string; tool?: string; op?: string; params?: object } | undefined;
+  const decisionSub = raw.decision as { verdict?: string; reason_code?: string; explanation?: string; policy_version?: string } | undefined;
+  const contextSub = raw.context as Record<string, unknown> | undefined;
+
+  const result: Record<string, unknown> = { ...raw };
+
+  if (actionSub && decisionSub) {
+    // Audit event — flatten nested fields to top level
+    const rawVerdict = (decisionSub.verdict ?? "").toUpperCase();
+    if (!result.id) result.id = actionSub.id ?? "";
+    result.verdict = VERDICT_MAP[rawVerdict] ?? rawVerdict.toLowerCase();
+    result.reason_code = result.reason_code ?? decisionSub.reason_code ?? "";
+    result.explanation = result.explanation ?? decisionSub.explanation ?? "";
+    result.policy_version = result.policy_version ?? decisionSub.policy_version ?? "";
+    // agent_id: prefer top-level (set by backend fix), fall back to context
+    result.agent_id = result.agent_id || contextSub?.agent_id || "";
+    result.timestamp = result.timestamp ?? result.created_at;
+    result.request_payload = (result.request_payload as object | undefined) ?? actionSub.params;
+    if (actionSub.tool && actionSub.op) {
+      result.tool = { name: actionSub.tool, op: actionSub.op };
+    }
+  }
+
+  // Normalize tool to consistent {name?, op?} shape
+  const rawTool = result.tool;
   const tool =
     rawTool && typeof rawTool === "object"
       ? rawTool
       : { op: typeof rawTool === "string" ? rawTool : "N/A" };
 
-  return { ...decision, tool };
+  return { ...result, tool } as Decision;
 };
 
 // API Client
@@ -272,6 +292,25 @@ class EdonApiClient {
       } as T;
     }
 
+    if (endpoint === '/v1/action' && options.method === 'POST') {
+      const body = JSON.parse(options.body as string);
+      const blockedPrefixes = ['shell', 'database', 'http'];
+      const blockedOps = ['send'];
+      const [toolPart, opPart] = (body.action_type || '').split('.');
+      const isBlocked =
+        blockedPrefixes.includes(toolPart) ||
+        (toolPart === 'email' && blockedOps.includes(opPart));
+      const decision = isBlocked ? 'BLOCK' : 'ALLOW';
+      return {
+        action_id: `mock-${Date.now()}`,
+        decision,
+        decision_reason: isBlocked
+          ? 'Policy violation: action not permitted under active preset'
+          : 'Action permitted by active governance preset',
+        processing_latency_ms: Math.floor(Math.random() * 30) + 5,
+      } as T;
+    }
+
     if (endpoint === '/integrations/clawdbot/connect' && options.method === 'POST') {
       return {
         connected: true,
@@ -283,7 +322,7 @@ class EdonApiClient {
     }
 
     if (endpoint.startsWith('/timeseries')) {
-      const days = new URL(`http://localhost${endpoint}`).searchParams.get('days') || '7';
+      const days = new URLSearchParams(endpoint.split('?')[1] || '').get('days') || '7';
       return generateMockTimeSeriesData(parseInt(days)) as T;
     }
 
@@ -386,9 +425,9 @@ class EdonApiClient {
     // We don't have /stats in the gateway.
     // So we approximate metrics using /decisions/query counts per verdict.
     const [allow, block, total] = await Promise.all([
-      this.request<{ total: number }>(`/decisions/query?verdict=ALLOW&limit=1`),
-      this.request<{ total: number }>(`/decisions/query?verdict=BLOCK&limit=1`),
-      this.request<{ total: number }>(`/decisions/query?limit=1`),
+      this.request<{ total: number }>(`/decisions/query?verdict=ALLOW&limit=1000`),
+      this.request<{ total: number }>(`/decisions/query?verdict=BLOCK&limit=1000`),
+      this.request<{ total: number }>(`/decisions/query?limit=1000`),
     ]);
 
     return {
@@ -601,6 +640,29 @@ class EdonApiClient {
       scope_includes_clawdbot: boolean;
     }>(`/policy-packs/${packName}/apply${query}`, {
       method: 'POST',
+    });
+  }
+
+  async evaluateAction(payload: {
+    action_type: string;
+    action_payload: Record<string, unknown>;
+    intent_id?: string;
+  }) {
+    return this.request<{
+      action_id: string;
+      decision: string;
+      decision_reason: string;
+      processing_latency_ms: number;
+      reason_code?: string;
+    }>('/v1/action', {
+      method: 'POST',
+      body: JSON.stringify({
+        agent_id: 'edon-demo-ui',
+        action_type: payload.action_type,
+        action_payload: payload.action_payload,
+        timestamp: new Date().toISOString(),
+        context: payload.intent_id ? { intent_id: payload.intent_id } : {},
+      }),
     });
   }
 }
