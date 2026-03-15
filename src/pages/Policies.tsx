@@ -5,9 +5,18 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Shield, ShieldCheck, ShieldAlert, Zap, Check, ChevronRight, RefreshCcw, Lock, Briefcase, Bot } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
+import { Shield, ShieldCheck, ShieldAlert, Zap, Check, ChevronRight, RefreshCcw, Lock, Briefcase, Bot, ChevronDown, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { edonApi, isMockMode, getToken } from '@/lib/api';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 interface PolicyPack {
   name: string;
@@ -27,11 +36,20 @@ interface PolicyPackWithMeta extends PolicyPack {
   bgGradient: string;
 }
 
+interface CustomPolicyRules {
+  allowedTools: string[];
+  blockedTools: string[];
+  confirmActions: string[];
+  maxActionsPerHour: number;
+  blockAfterHours: boolean;
+}
+
 interface CustomPolicy {
   id: string;
   name: string;
   description: string;
   createdAt: string;
+  rules?: CustomPolicyRules;
 }
 
 const PLAN_KEY = 'edon_plan';
@@ -102,6 +120,39 @@ const GOVERNANCE_MODES = [
   },
 ] as const;
 
+// Tool lists per pack
+const PACK_ALLOWED_TOOLS: Record<string, string[]> = {
+  casual_user: ['web.search', 'file.read', 'calendar.read', 'email.read', 'notes.create'],
+  personal_safe: ['web.search', 'file.read', 'calendar.read', 'email.read', 'notes.create'],
+  market_analyst: ['web.search', 'finance.query', 'data.read', 'report.generate', 'calendar.read'],
+  work_safe: ['web.search', 'finance.query', 'data.read', 'report.generate', 'calendar.read', 'email.read'],
+  ops_commander: ['web.search', 'file.read', 'file.write', 'email.send', 'calendar.write', 'task.create', 'api.call'],
+  ops_admin: ['web.search', 'file.read', 'file.write', 'email.send', 'calendar.write', 'task.create', 'api.call', 'db.query', 'shell.exec'],
+  founder_mode: ['web.search', 'file.read', 'file.write', 'email.send', 'email.read', 'calendar.write', 'calendar.read', 'task.create', 'api.call', 'db.query', 'user.lookup', 'report.generate'],
+  helpdesk: ['email.read', 'email.send', 'ticket.create', 'ticket.update', 'knowledge.search', 'user.lookup'],
+  autonomy_mode: ['web.search', 'file.read', 'file.write', 'email.send', 'email.read', 'calendar.write', 'calendar.read', 'task.create', 'api.call', 'db.query', 'shell.exec', 'user.lookup', 'report.generate', 'payment.process'],
+  finance_lock: ['finance.query', 'data.read', 'report.generate', 'email.read'],
+  research_mode: ['web.search', 'data.read', 'report.generate', 'finance.query', 'notes.create', 'knowledge.search', 'file.read'],
+};
+
+const ALL_TOOLS = [
+  'web.search', 'file.read', 'file.write', 'email.read', 'email.send',
+  'calendar.read', 'calendar.write', 'task.create', 'api.call', 'db.query',
+  'shell.exec', 'user.lookup', 'report.generate', 'finance.query', 'data.read',
+  'notes.create', 'ticket.create', 'ticket.update', 'knowledge.search', 'payment.process',
+  'system.admin', 'file.delete_bulk',
+];
+
+const PACK_CONFIRM_ACTIONS: Record<string, string[]> = {
+  personal_safe: ['email.send', 'file.write', 'calendar.write'],
+  work_safe: ['email.send', 'payment.process', 'user.modify'],
+  ops_admin: [],
+  finance_lock: ['payment.process', 'api.call'],
+  research_mode: [],
+};
+
+const CONFIRM_OPTIONS = ['email.send', 'file.delete', 'api.call', 'payment.process', 'user.modify'];
+
 export default function Policies() {
   const [packs, setPacks] = useState<PolicyPackWithMeta[]>([]);
   const [activePolicy, setActivePolicy] = useState<string | null>(null);
@@ -112,7 +163,19 @@ export default function Policies() {
   const [customName, setCustomName] = useState('');
   const [customDescription, setCustomDescription] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [advancedRulesOpen, setAdvancedRulesOpen] = useState(false);
   const { toast } = useToast();
+
+  // Custom policy rules state
+  const [rulesAllowedTools, setRulesAllowedTools] = useState('');
+  const [rulesBlockedTools, setRulesBlockedTools] = useState('');
+  const [rulesConfirmActions, setRulesConfirmActions] = useState<string[]>([]);
+  const [rulesMaxActions, setRulesMaxActions] = useState(100);
+  const [rulesBlockAfterHours, setRulesBlockAfterHours] = useState(false);
+
+  // View Rules dialog
+  const [viewRulesPack, setViewRulesPack] = useState<PolicyPackWithMeta | null>(null);
+  const [viewRulesOpen, setViewRulesOpen] = useState(false);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -161,7 +224,21 @@ export default function Policies() {
     setCustomName('');
     setCustomDescription('');
     setEditingId(null);
+    setRulesAllowedTools('');
+    setRulesBlockedTools('');
+    setRulesConfirmActions([]);
+    setRulesMaxActions(100);
+    setRulesBlockAfterHours(false);
+    setAdvancedRulesOpen(false);
   };
+
+  const buildRules = (): CustomPolicyRules => ({
+    allowedTools: rulesAllowedTools.split(',').map((t) => t.trim()).filter(Boolean),
+    blockedTools: rulesBlockedTools.split(',').map((t) => t.trim()).filter(Boolean),
+    confirmActions: rulesConfirmActions,
+    maxActionsPerHour: rulesMaxActions,
+    blockAfterHours: rulesBlockAfterHours,
+  });
 
   const handleSaveCustom = () => {
     if (!customName.trim()) {
@@ -171,7 +248,7 @@ export default function Policies() {
     if (editingId) {
       const next = customPolicies.map((policy) =>
         policy.id === editingId
-          ? { ...policy, name: customName.trim(), description: customDescription.trim() }
+          ? { ...policy, name: customName.trim(), description: customDescription.trim(), rules: buildRules() }
           : policy
       );
       persistCustomPolicies(next);
@@ -196,6 +273,7 @@ export default function Policies() {
       name: customName.trim(),
       description: customDescription.trim() || 'Custom policy pack',
       createdAt: new Date().toISOString(),
+      rules: buildRules(),
     };
     persistCustomPolicies([newPolicy, ...customPolicies]);
     toast({ title: 'Custom policy created', description: 'You can apply it after saving.' });
@@ -206,6 +284,14 @@ export default function Policies() {
     setCustomName(policy.name);
     setCustomDescription(policy.description);
     setEditingId(policy.id);
+    if (policy.rules) {
+      setRulesAllowedTools(policy.rules.allowedTools.join(', '));
+      setRulesBlockedTools(policy.rules.blockedTools.join(', '));
+      setRulesConfirmActions(policy.rules.confirmActions);
+      setRulesMaxActions(policy.rules.maxActionsPerHour);
+      setRulesBlockAfterHours(policy.rules.blockAfterHours);
+      setAdvancedRulesOpen(true);
+    }
   };
 
   const handleRemoveCustom = (policyId: string) => {
@@ -215,9 +301,13 @@ export default function Policies() {
     if (editingId === policyId) resetCustomForm();
   };
 
+  const openViewRules = (pack: PolicyPackWithMeta) => {
+    setViewRulesPack(pack);
+    setViewRulesOpen(true);
+  };
+
   const fetchPacks = useCallback(async () => {
     if (isMockMode()) {
-      // Mock data
       setPacks([
         {
           name: 'personal_safe',
@@ -276,7 +366,6 @@ export default function Policies() {
 
     try {
       const response = await edonApi.getPolicyPacks();
-      // Ensure response is an array
       const packsArray = Array.isArray(response) ? response : [];
       const packsWithMeta: PolicyPackWithMeta[] = packsArray.map((pack) => ({
         ...pack,
@@ -333,9 +422,7 @@ export default function Policies() {
       if (import.meta.env.DEV) {
         console.error('Failed to fetch policy packs:', error);
       }
-      // Don't show error toast if it's just missing auth token
       if (error instanceof Error && (error.message.includes('401') || error.message.includes('Authentication'))) {
-        // User needs to set token - this is expected
         if (import.meta.env.DEV) {
           console.info('Policy packs require authentication. Set API token in Settings.');
         }
@@ -364,15 +451,12 @@ export default function Policies() {
 
     try {
       const status = await edonApi.getIntegrationStatus();
-      // Support both current and legacy field names
       const integration = (status as Record<string, unknown>)?.agent ?? (status as Record<string, unknown>)?.clawdbot;
       const pack = (integration as Record<string, unknown> | undefined)?.active_policy_pack;
       if (typeof pack === 'string' && pack) {
         setActivePolicy(pack);
       }
     } catch (error) {
-      // Silently fail - token might not be set yet
-      // User will see "None" for active policy, which is fine
       if (import.meta.env.DEV) {
         console.debug('Failed to fetch active policy (this is OK if token not set):', error);
       }
@@ -386,7 +470,7 @@ export default function Policies() {
 
   const activatePolicy = async (packName: string) => {
     setActivating(packName);
-    
+
     try {
       if (isMockMode()) {
         await new Promise((resolve) => setTimeout(resolve, 500));
@@ -420,7 +504,6 @@ export default function Policies() {
           title: 'Safety Pack Applied',
           description: response.message || `${packName} is now active`,
         });
-        // Refresh active policy from status
         await fetchActivePolicy();
       }
     } catch (error: unknown) {
@@ -434,10 +517,16 @@ export default function Policies() {
     }
   };
 
+  // Derive blocked tools for a pack
+  const getBlockedTools = (packName: string): string[] => {
+    const allowed = new Set(PACK_ALLOWED_TOOLS[packName] ?? []);
+    return ALL_TOOLS.filter((t) => !allowed.has(t));
+  };
+
   return (
     <div className="min-h-screen">
       <TopNav />
-      
+
       <main className="container mx-auto px-6 py-8">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -604,9 +693,84 @@ export default function Policies() {
                       value={customDescription}
                       onChange={(e) => setCustomDescription(e.target.value)}
                       placeholder="Describe what this safety pack allows and blocks"
-                      className="bg-secondary/50 min-h-[100px]"
+                      className="bg-secondary/50 min-h-[80px]"
                     />
                   </div>
+
+                  {/* Advanced Rules */}
+                  {customName.trim() && (
+                    <div className="rounded-lg border border-white/10 bg-white/5 overflow-hidden">
+                      <button
+                        type="button"
+                        onClick={() => setAdvancedRulesOpen((v) => !v)}
+                        className="w-full flex items-center justify-between px-4 py-3 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        <span className="font-medium">Advanced Rules</span>
+                        <ChevronDown className={`h-4 w-4 transition-transform ${advancedRulesOpen ? 'rotate-180' : ''}`} />
+                      </button>
+                      {advancedRulesOpen && (
+                        <div className="px-4 pb-4 space-y-4 border-t border-white/10">
+                          <div className="space-y-1 pt-3">
+                            <Label className="text-xs text-muted-foreground">Allowed Tools (comma-separated)</Label>
+                            <Input
+                              value={rulesAllowedTools}
+                              onChange={(e) => setRulesAllowedTools(e.target.value)}
+                              placeholder="web.search, file.read, email.read"
+                              className="bg-secondary/50 text-sm font-mono"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs text-muted-foreground">Blocked Tools (comma-separated)</Label>
+                            <Input
+                              value={rulesBlockedTools}
+                              onChange={(e) => setRulesBlockedTools(e.target.value)}
+                              placeholder="shell.exec, file.delete_bulk, system.admin"
+                              className="bg-secondary/50 text-sm font-mono"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label className="text-xs text-muted-foreground">Require confirmation for</Label>
+                            <div className="grid grid-cols-2 gap-2">
+                              {CONFIRM_OPTIONS.map((opt) => (
+                                <div key={opt} className="flex items-center gap-2">
+                                  <Checkbox
+                                    id={`confirm-${opt}`}
+                                    checked={rulesConfirmActions.includes(opt)}
+                                    onCheckedChange={(v) =>
+                                      setRulesConfirmActions((prev) =>
+                                        v ? [...prev, opt] : prev.filter((a) => a !== opt)
+                                      )
+                                    }
+                                  />
+                                  <Label htmlFor={`confirm-${opt}`} className="text-xs font-mono cursor-pointer">{opt}</Label>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs text-muted-foreground">Max actions per hour</Label>
+                            <Input
+                              type="number"
+                              value={rulesMaxActions}
+                              onChange={(e) => setRulesMaxActions(Number(e.target.value))}
+                              min={1}
+                              max={10000}
+                              className="bg-secondary/50 text-sm w-32"
+                            />
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Checkbox
+                              id="block-after-hours"
+                              checked={rulesBlockAfterHours}
+                              onCheckedChange={(v) => setRulesBlockAfterHours(!!v)}
+                            />
+                            <Label htmlFor="block-after-hours" className="text-sm cursor-pointer">Block after business hours</Label>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   <div className="flex flex-wrap gap-2">
                     <Button onClick={handleSaveCustom} disabled={customPolicies.length >= customLimit && !editingId}>
                       {editingId ? 'Update Safety Pack' : 'Create Safety Pack'}
@@ -643,6 +807,35 @@ export default function Policies() {
                             </Button>
                           </div>
                         </div>
+                        {policy.rules && (
+                          <div className="mt-2 flex flex-wrap gap-1.5">
+                            {policy.rules.allowedTools.length > 0 && (
+                              <Badge variant="outline" className="text-[10px] border-emerald-500/30 text-emerald-400">
+                                {policy.rules.allowedTools.length} allowed
+                              </Badge>
+                            )}
+                            {policy.rules.blockedTools.length > 0 && (
+                              <Badge variant="outline" className="text-[10px] border-red-500/30 text-red-400">
+                                {policy.rules.blockedTools.length} blocked
+                              </Badge>
+                            )}
+                            {policy.rules.confirmActions.length > 0 && (
+                              <Badge variant="outline" className="text-[10px] border-amber-500/30 text-amber-400">
+                                {policy.rules.confirmActions.length} confirm
+                              </Badge>
+                            )}
+                            {policy.rules.maxActionsPerHour !== 100 && (
+                              <Badge variant="outline" className="text-[10px] border-white/20 text-muted-foreground">
+                                max {policy.rules.maxActionsPerHour}/hr
+                              </Badge>
+                            )}
+                            {policy.rules.blockAfterHours && (
+                              <Badge variant="outline" className="text-[10px] border-white/20 text-muted-foreground">
+                                blocks after hours
+                              </Badge>
+                            )}
+                          </div>
+                        )}
                         <p className="text-xs text-muted-foreground mt-2">
                           Created {new Date(policy.createdAt).toLocaleDateString()}
                         </p>
@@ -664,7 +857,7 @@ export default function Policies() {
               {packs.map((policy, index) => {
                 const Icon = policy.icon;
                 const isActive = activePolicy === policy.name;
-              
+
               return (
                 <motion.div
                   key={policy.name}
@@ -676,7 +869,7 @@ export default function Policies() {
                   }`}
                 >
                   <div className={`absolute inset-0 bg-gradient-to-br ${policy.bgGradient} opacity-40`} />
-                  
+
                   <div className="relative">
                     {/* Header */}
                     <div className="flex items-start justify-between mb-4">
@@ -705,7 +898,7 @@ export default function Policies() {
                     </div>
 
                     {/* Rules Preview */}
-                    <div className="space-y-3 mb-6">
+                    <div className="space-y-3 mb-4">
                       <div>
                         <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
                           <span className="w-2 h-2 bg-emerald-500 rounded-full" />
@@ -739,6 +932,15 @@ export default function Policies() {
                       )}
                     </div>
 
+                    {/* View Rules button */}
+                    <button
+                      type="button"
+                      onClick={() => openViewRules(policy)}
+                      className="text-xs text-primary hover:underline inline-flex items-center gap-0.5 mb-4"
+                    >
+                      View Rules <ChevronRight className="h-3 w-3" />
+                    </button>
+
                     {/* Activate Button */}
                     <Button
                       onClick={() => activatePolicy(policy.name)}
@@ -771,6 +973,107 @@ export default function Policies() {
           )}
         </motion.div>
       </main>
+
+      {/* View Rules Dialog */}
+      <Dialog open={viewRulesOpen} onOpenChange={setViewRulesOpen}>
+        <DialogContent className="glass-card border-white/10 max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-3">
+              <span>
+                {viewRulesPack
+                  ? nameMap[viewRulesPack.name] ?? viewRulesPack.name.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
+                  : ''}
+              </span>
+              {viewRulesPack && (
+                <Badge variant="outline" className="text-xs">
+                  Risk: {viewRulesPack.risk_level}
+                </Badge>
+              )}
+            </DialogTitle>
+          </DialogHeader>
+
+          {viewRulesPack && (
+            <ScrollArea className="max-h-[480px]">
+              <div className="space-y-5 pr-1">
+                {/* Allowed Tools */}
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
+                    <span className="w-2 h-2 bg-emerald-500 rounded-full" />
+                    Allowed Tools
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {(PACK_ALLOWED_TOOLS[viewRulesPack.name] ?? []).map((tool) => (
+                      <Badge key={tool} variant="outline" className="text-xs font-mono border-emerald-500/30 text-emerald-400 bg-emerald-500/10">
+                        {tool}
+                      </Badge>
+                    ))}
+                    {(PACK_ALLOWED_TOOLS[viewRulesPack.name] ?? []).length === 0 && (
+                      <span className="text-xs text-muted-foreground">No tools defined</span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Blocked Tools */}
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
+                    <span className="w-2 h-2 bg-red-500 rounded-full" />
+                    Blocked Tools
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {getBlockedTools(viewRulesPack.name).map((tool) => (
+                      <Badge key={tool} variant="outline" className="text-xs font-mono border-red-500/30 text-red-400 bg-red-500/10">
+                        <X className="h-2.5 w-2.5 mr-1" />
+                        {tool}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Requires Confirmation */}
+                {(PACK_CONFIRM_ACTIONS[viewRulesPack.name] ?? []).length > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
+                      <span className="w-2 h-2 bg-amber-500 rounded-full" />
+                      Requires Confirmation
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {(PACK_CONFIRM_ACTIONS[viewRulesPack.name] ?? []).map((tool) => (
+                        <Badge key={tool} variant="outline" className="text-xs font-mono border-amber-500/30 text-amber-400 bg-amber-500/10">
+                          {tool}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Scope */}
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Scope</p>
+                  <p className="text-sm text-muted-foreground bg-secondary/30 rounded-lg px-3 py-2">
+                    {viewRulesPack.description}
+                  </p>
+                </div>
+
+                <Button
+                  onClick={() => {
+                    activatePolicy(viewRulesPack.name);
+                    setViewRulesOpen(false);
+                  }}
+                  disabled={activePolicy === viewRulesPack.name || activating === viewRulesPack.name}
+                  className="w-full gap-2"
+                  variant={activePolicy === viewRulesPack.name ? 'outline' : 'default'}
+                >
+                  {activePolicy === viewRulesPack.name ? (
+                    <><Check className="w-4 h-4" /> Currently Active</>
+                  ) : (
+                    <>Apply Pack <ChevronRight className="w-4 h-4" /></>
+                  )}
+                </Button>
+              </div>
+            </ScrollArea>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

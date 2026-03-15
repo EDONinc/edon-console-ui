@@ -10,8 +10,11 @@ export const toolOp = (tool: unknown) => {
   if (typeof tool === "string") return tool;
   if (typeof tool === "object") {
     const candidate = tool as { op?: unknown; name?: unknown };
-    if (typeof candidate.op === "string") return candidate.op;
-    if (typeof candidate.name === "string") return candidate.name;
+    const name = typeof candidate.name === "string" ? candidate.name : "";
+    const op = typeof candidate.op === "string" ? candidate.op : "";
+    if (name && op) return `${name}.${op}`;
+    if (op) return op;
+    if (name) return name;
   }
   return "N/A";
 };

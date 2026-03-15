@@ -105,6 +105,10 @@ export default {
           "0%, 100%": { boxShadow: "0 0 20px rgba(168, 85, 247, 0.4)" },
           "50%": { boxShadow: "0 0 30px rgba(168, 85, 247, 0.6)" },
         },
+        shimmer: {
+          "0%": { backgroundPosition: "200% center" },
+          "100%": { backgroundPosition: "-200% center" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
@@ -112,6 +116,7 @@ export default {
         "fade-in": "fade-in 0.5s ease-out",
         "slide-in": "slide-in 0.3s ease-out",
         "pulse-glow": "pulse-glow 2s ease-in-out infinite",
+        shimmer: "shimmer 3s ease-in-out infinite",
       },
       backdropBlur: {
         xs: "2px",

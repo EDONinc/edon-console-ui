@@ -1,11 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { X, GripVertical, ImagePlus, Send, Plus } from "lucide-react";
 import { edonApi, isMockMode, getToken } from "@/lib/api";
+import {
+  fetchDashboardContext,
+  getDashboardAwareReply,
+  dashboardContextToPromptText,
+  type DashboardContext,
+} from "@/lib/dashboardContext";
 
 type Message = {
   id: string;
@@ -21,23 +26,9 @@ type ChatThread = {
 
 const WIDTH_KEY = "edon_chat_sidebar_width";
 
-const defaultModels = [
-  "Claude Sonnet",
-  "GPT-5.2",
-  "GPT-4o",
-  "Gemini 1.5 Pro",
-];
-
-const defaultAgents = ["Default Agent", "Operations Agent", "Research Agent", "Executive Agent"];
-
 export function ChatSidebar({ open, onOpenChange }: { open: boolean; onOpenChange: (next: boolean) => void }) {
   const [width, setWidth] = useState(420);
   const [isResizing, setIsResizing] = useState(false);
-  const [modelList, setModelList] = useState(defaultModels);
-  const [agentList, setAgentList] = useState(defaultAgents);
-  const [model, setModel] = useState(defaultModels[0]);
-  const [agent, setAgent] = useState(defaultAgents[0]);
-  const [managedBilling, setManagedBilling] = useState(false);
   const [threads, setThreads] = useState<ChatThread[]>([
     { id: "chat-1", title: "New chat", messages: [] },
   ]);
@@ -53,36 +44,6 @@ export function ChatSidebar({ open, onOpenChange }: { open: boolean; onOpenChang
     if (stored) {
       const parsed = Number(stored);
       if (!Number.isNaN(parsed)) setWidth(parsed);
-    }
-    const storedModels = localStorage.getItem("edon_llm_list");
-    const storedAgents = localStorage.getItem("edon_agent_list");
-    const storedManaged = localStorage.getItem("edon_llm_managed_billing") === "true";
-    setManagedBilling(storedManaged);
-    if (storedModels) {
-      try {
-        const parsedModels = JSON.parse(storedModels) as string[];
-        if (Array.isArray(parsedModels) && parsedModels.length > 0) {
-          setModelList(parsedModels);
-          setModel(parsedModels[0]);
-        }
-      } catch (error) {
-        if (import.meta.env.DEV) {
-          console.warn("Failed to parse stored model list", error);
-        }
-      }
-    }
-    if (storedAgents) {
-      try {
-        const parsedAgents = JSON.parse(storedAgents) as string[];
-        if (Array.isArray(parsedAgents) && parsedAgents.length > 0) {
-          setAgentList(parsedAgents);
-          setAgent(parsedAgents[0]);
-        }
-      } catch (error) {
-        if (import.meta.env.DEV) {
-          console.warn("Failed to parse stored agent list", error);
-        }
-      }
     }
   }, []);
 
@@ -142,15 +103,29 @@ export function ChatSidebar({ open, onOpenChange }: { open: boolean; onOpenChang
     const assistantId = `assistant-${Date.now() + 1}`;
     appendMessages(threadId, [
       { id: userId, role: "user", content },
-      { id: assistantId, role: "assistant", content: "Processing with safety checks..." },
+      { id: assistantId, role: "assistant", content: "Loading dashboard data..." },
     ]);
 
+    let dashboardContext: DashboardContext;
+    try {
+      dashboardContext = await fetchDashboardContext();
+    } catch {
+      dashboardContext = {
+        fetched_at: new Date().toISOString(),
+        metrics: {},
+        health: null,
+        recent_decisions: [],
+        recent_audit: [],
+        block_reasons: [],
+        policy_packs: [],
+      };
+    }
+
+    updateMessage(threadId, assistantId, "Processing with safety checks...");
+
     if (isMockMode() || !getToken()) {
-      updateMessage(
-        threadId,
-        assistantId,
-        "Demo mode response: safety checks accepted the request. Connect your gateway to run live actions."
-      );
+      const reply = getDashboardAwareReply(content, dashboardContext);
+      updateMessage(threadId, assistantId, reply);
       return;
     }
 
@@ -161,7 +136,11 @@ export function ChatSidebar({ open, onOpenChange }: { open: boolean; onOpenChang
       const response = await edonApi.invokeClawdbot({
         tool: toolName,
         action: toolAction,
-        args: { prompt: content, model, agent },
+        args: {
+          prompt: content,
+          dashboard_context: dashboardContext,
+          dashboard_context_text: dashboardContextToPromptText(dashboardContext),
+        },
         credential_id: credentialId || undefined,
       });
       if (response.ok) {
@@ -183,17 +162,19 @@ export function ChatSidebar({ open, onOpenChange }: { open: boolean; onOpenChang
         }
         updateMessage(threadId, assistantId, resultText);
       } else {
+        const fallback = getDashboardAwareReply(content, dashboardContext);
         updateMessage(
           threadId,
           assistantId,
-          response.error || "Gateway returned an error for this request."
+          `${response.error || "Gateway returned an error."}\n\n— From your dashboard: ${fallback}`
         );
       }
     } catch (error: unknown) {
+      const fallback = getDashboardAwareReply(content, dashboardContext);
       const message = error instanceof Error ? error.message : "Request failed.";
-      updateMessage(threadId, assistantId, message);
+      updateMessage(threadId, assistantId, `${message}\n\n— From your dashboard: ${fallback}`);
     }
-  }, [activeThreadId, agent, appendMessages, model, updateMessage]);
+  }, [activeThreadId, appendMessages, updateMessage]);
 
   const handleSend = () => {
     const trimmed = input.trim();
@@ -305,7 +286,7 @@ export function ChatSidebar({ open, onOpenChange }: { open: boolean; onOpenChang
           <div className="space-y-4">
             {(activeThread?.messages.length || 0) === 0 ? (
               <div className="rounded-lg border border-white/10 bg-white/5 p-4 text-xs text-muted-foreground">
-                Start a conversation to route tasks through safety checks. You can upload images and switch models anytime.
+                Start a conversation to route tasks through safety checks. You can upload images anytime.
               </div>
             ) : (
               activeThread?.messages.map((msg) => (
@@ -346,48 +327,11 @@ export function ChatSidebar({ open, onOpenChange }: { open: boolean; onOpenChang
               Upload images
             </label>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-2">
-              <p className="text-[11px] uppercase tracking-widest text-muted-foreground">LLM</p>
-              <Select value={model} onValueChange={setModel}>
-                <SelectTrigger className="bg-secondary/50 text-xs h-8">
-                  <SelectValue placeholder="Select model" />
-                </SelectTrigger>
-                <SelectContent>
-                  {modelList.map((item) => (
-                    <SelectItem key={item} value={item}>
-                      {item}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <p className="text-[11px] uppercase tracking-widest text-muted-foreground">Agent</p>
-              <Select value={agent} onValueChange={setAgent}>
-                <SelectTrigger className="bg-secondary/50 text-xs h-8">
-                  <SelectValue placeholder="Select agent" />
-                </SelectTrigger>
-                <SelectContent>
-                  {agentList.map((item) => (
-                    <SelectItem key={item} value={item}>
-                      {item}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          {managedBilling && (
-            <div className="text-[11px] text-muted-foreground">
-              EDON-managed billing enabled.
-            </div>
-          )}
           <div className="flex items-center gap-2">
             <Input
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Ask the agent to take a governed action..."
+              placeholder="Ask away..."
               className="bg-secondary/50 text-xs h-9"
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {

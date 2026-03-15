@@ -1,557 +1,612 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { TopNav } from "@/components/TopNav";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ChevronDown, Copy, KeyRound, Sparkles, ShieldCheck, Link2, Cpu, HelpCircle } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
+import { edonApi } from "@/lib/api";
+import {
+  Check, Copy, ChevronRight, ChevronLeft, Globe, Shield, Zap, Bot, Lock,
+  Eye, EyeOff, AlertTriangle, X,
+} from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
 
-const baseModels = [
-  { name: "Claude Sonnet", provider: "Anthropic", strengths: "Balanced safety + tools", note: "Strong default" },
-  { name: "GPT-4o", provider: "OpenAI", strengths: "Multimodal speed", note: "Great for mixed media" },
-  { name: "GPT-5.2", provider: "OpenAI", strengths: "Fast reasoning + tools", note: "Lowest latency" },
-  { name: "Gemini 1.5 Pro", provider: "Google", strengths: "Long context", note: "Huge context window" },
-  { name: "Mistral Large", provider: "Mistral", strengths: "Efficient reasoning", note: "Great value" },
-  { name: "Local / BYO Model", provider: "Custom", strengths: "Privacy", note: "Bring your own endpoint" },
-];
+const TOTAL_STEPS = 4;
 
-const governanceModes = [
+interface PolicyOption {
+  name: string;
+  packName: string;
+  description: string;
+  riskLevel: "low" | "medium" | "high";
+  riskColor: string;
+  icon: typeof Shield;
+  bullets: string[];
+}
+
+const POLICY_OPTIONS: PolicyOption[] = [
   {
-    key: "safe",
-    title: "Safe Mode",
-    can: "Can execute low-risk tasks with approval flows.",
-    blocks: "Blocks high-impact actions without explicit user confirmation.",
-    escalation: "Escalates on anomalies + policy violations.",
+    name: "Safe Mode",
+    packName: "personal_safe",
+    description: "Conservative governance. High-risk actions blocked automatically before they run.",
+    riskLevel: "low",
+    riskColor: "text-emerald-400 border-emerald-500/30 bg-emerald-500/10",
+    icon: Lock,
+    bullets: [
+      "Blocks high-impact actions by default",
+      "Escalates on policy violations",
+      "Best starting point for new deployments",
+    ],
   },
   {
-    key: "business",
-    title: "Business Mode",
-    can: "Can run business workflows and scheduled actions.",
-    blocks: "Blocks high-risk financial and security actions.",
-    escalation: "Escalates to your team and the audit log.",
+    name: "Business Mode",
+    packName: "work_safe",
+    description: "Business workflows run freely. Sensitive actions require explicit approval.",
+    riskLevel: "medium",
+    riskColor: "text-sky-400 border-sky-500/30 bg-sky-500/10",
+    icon: Shield,
+    bullets: [
+      "Finance and data actions need approval",
+      "Full audit trail for compliance",
+      "Built for ops teams and enterprises",
+    ],
   },
   {
-    key: "autonomy",
-    title: "Autonomy Mode (24/7)",
-    can: "Can execute end-to-end workflows continuously.",
-    blocks: "Blocks disallowed intent patterns and unsafe tools.",
-    escalation: "Escalates only on critical violations.",
+    name: "Founder Mode",
+    packName: "founder_mode",
+    description: "Full access minus destructive bulk operations. Move fast, stay safe.",
+    riskLevel: "high",
+    riskColor: "text-amber-400 border-amber-500/30 bg-amber-500/10",
+    icon: Zap,
+    bullets: [
+      "Nearly all tools enabled",
+      "Blocks system.admin and bulk deletes",
+      "For trusted operators with full context",
+    ],
   },
   {
-    key: "custom",
-    title: "Custom / Advanced",
-    can: "Define custom guardrails and tool allowlists.",
-    blocks: "Blocks based on your custom policy packs.",
-    escalation: "Custom escalation routing.",
+    name: "Autonomy Mode",
+    packName: "autonomy_mode",
+    description: "Agent operates continuously. Only critical violations surface.",
+    riskLevel: "high",
+    riskColor: "text-red-400 border-red-500/30 bg-red-500/10",
+    icon: Bot,
+    bullets: [
+      "All tools enabled",
+      "Silent by design — minimal interruptions",
+      "For 24/7 always-on pipelines",
+    ],
   },
 ];
 
-const channelOptions = [
-  "Slack",
-  "Email",
-  "API",
-  "Discord",
-  "Telegram",
-  "WhatsApp",
-  "WebChat",
-];
+const CODE_SNIPPET = `POST https://edon-gateway.fly.dev/clawdbot/invoke
+X-EDON-TOKEN: <your-token>
+Content-Type: application/json
 
-const exampleCommands = [
-  "Manage your calendar",
-  "Book meetings",
-  "Research competitors",
-  "Book a flight",
-  "Research real estate opportunities",
-  "Analyze reports & generate insights",
-];
+{
+  "tool": "email",
+  "action": "send",
+  "args": {
+    "to": "user@example.com",
+    "subject": "Hello from your agent"
+  }
+}`;
 
 export default function Quickstart() {
   const { toast } = useToast();
-  const [selectedModel, setSelectedModel] = useState("Claude Sonnet");
-  const [modelRows, setModelRows] = useState(baseModels);
-  const [llmTokenType, setLlmTokenType] = useState<"oauth" | "apikey" | "local">("oauth");
-  const [llmApiKey, setLlmApiKey] = useState("");
-  const [agentToken, setAgentToken] = useState("");
-  const [gatewayToken, setGatewayToken] = useState("");
-  const [primaryChannel, setPrimaryChannel] = useState("Slack");
-  const [channelToggles, setChannelToggles] = useState<Record<string, boolean>>({
-    Slack: true,
-    Email: false,
-    API: true,
-    Discord: false,
-    Telegram: false,
-    WhatsApp: false,
-    WebChat: false,
-  });
-  const [mode, setMode] = useState("safe");
-  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const navigate = useNavigate();
+  const [step, setStep] = useState(1);
 
-  const selectedProvider = useMemo(() => {
-    const model = modelRows.find((item) => item.name === selectedModel);
-    return model?.provider || "Custom";
-  }, [selectedModel, modelRows]);
+  // Step 1
+  const [backendUrl, setBackendUrl] = useState("");
+  const [authToken, setAuthToken] = useState("");
+  const [probeConnection, setProbeConnection] = useState(true);
+  const [testingConnection, setTestingConnection] = useState(false);
+  const [connectionResult, setConnectionResult] = useState<"ok" | "fail" | null>(null);
 
-  const providerLinks: Record<string, string> = {
-    Anthropic: "https://console.anthropic.com/settings/keys",
-    OpenAI: "https://platform.openai.com/api-keys",
-    Google: "https://aistudio.google.com/app/apikey",
-    Mistral: "https://console.mistral.ai/api-keys",
-  };
+  // Step 2
+  const [selectedPack, setSelectedPack] = useState<string | null>(null);
+  const [applyingPack, setApplyingPack] = useState(false);
+  const [packApplied, setPackApplied] = useState(false);
 
-  const initRef = useRef(false);
+  // Step 3
+  const [edonToken, setEdonToken] = useState("");
+  const [tokenVisible, setTokenVisible] = useState(false);
+
+  // Step 4
+  const [testingFlow, setTestingFlow] = useState(false);
+  const [testResult, setTestResult] = useState<{
+    verdict: string;
+    reason: string;
+  } | null>(null);
 
   useEffect(() => {
-    if (initRef.current) return;
-    if (typeof window === "undefined") return;
-    const savedModel = localStorage.getItem("edon_llm_model");
-    const savedKey = localStorage.getItem("edon_llm_api_key");
-    const savedAgent = localStorage.getItem("edon_agent_token");
-    const storedList = localStorage.getItem("edon_llm_list");
-    if (storedList) {
-      try {
-        const parsed = JSON.parse(storedList) as string[];
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          const mapped = parsed.map((name) => baseModels.find((row) => row.name === name) || {
-            name,
-            provider: "Custom",
-            strengths: "Custom model",
-            note: "Managed list",
-          });
-          setModelRows(mapped);
-          if (!parsed.includes(selectedModel)) {
-            setSelectedModel(mapped[0].name);
-          }
-        }
-      } catch (error) {
-        if (import.meta.env.DEV) {
-          console.warn("Failed to parse stored LLM list", error);
-        }
-      }
-    }
-    if (savedModel) setSelectedModel(savedModel);
-    if (savedKey) setLlmApiKey(savedKey);
-    if (savedAgent) setAgentToken(savedAgent);
-    initRef.current = true;
-  }, [selectedModel]);
+    const stored = localStorage.getItem("edon_token") || "";
+    setEdonToken(stored);
+  }, []);
 
-  const copyValue = async (label: string, value: string) => {
-    if (!value) {
-      toast({ title: "Nothing to copy", description: `${label} is empty.` });
+  const handleTestConnection = async () => {
+    if (!backendUrl.trim()) {
+      toast({ title: "Backend URL required", description: "Enter your agent backend URL first.", variant: "destructive" });
+      return;
+    }
+    setTestingConnection(true);
+    setConnectionResult(null);
+    try {
+      await edonApi.connectClawdbot({
+        base_url: backendUrl.trim(),
+        secret: authToken.trim(),
+        auth_mode: "token",
+        credential_id: "agent_gateway",
+        probe: probeConnection,
+      });
+      setConnectionResult("ok");
+      toast({ title: "Connection successful", description: "EDON can reach your backend." });
+    } catch {
+      setConnectionResult("fail");
+      toast({ title: "Connection failed", description: "Could not reach your backend. Check the URL and token.", variant: "destructive" });
+    } finally {
+      setTestingConnection(false);
+    }
+  };
+
+  const handleApplyPolicy = async () => {
+    if (!selectedPack) {
+      toast({ title: "Select a policy", description: "Choose a governance mode first.", variant: "destructive" });
+      return;
+    }
+    setApplyingPack(true);
+    try {
+      await edonApi.applyPolicyPack(selectedPack);
+      setPackApplied(true);
+      localStorage.setItem("edon_active_policy_pack", selectedPack);
+      toast({ title: "Policy applied", description: `${selectedPack} is now active.` });
+    } catch (err: unknown) {
+      toast({
+        title: "Failed to apply policy",
+        description: err instanceof Error ? err.message : "Could not apply policy.",
+        variant: "destructive",
+      });
+    } finally {
+      setApplyingPack(false);
+    }
+  };
+
+  const copyToken = async () => {
+    if (!edonToken) {
+      toast({ title: "No token found", description: "Go to Settings to configure your access key.", variant: "destructive" });
       return;
     }
     try {
-      await navigator.clipboard.writeText(value);
-      toast({ title: "Copied", description: `${label} copied to clipboard.` });
+      await navigator.clipboard.writeText(edonToken);
+      toast({ title: "Copied", description: "Token copied to clipboard." });
     } catch {
-      toast({ title: "Copy failed", description: "Clipboard permissions are blocked.", variant: "destructive" });
+      toast({ title: "Copy failed", description: "Clipboard access blocked.", variant: "destructive" });
     }
   };
 
-  const generateAgentToken = () => {
-    const bytes = new Uint8Array(24);
-    crypto.getRandomValues(bytes);
-    const token = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
-    setAgentToken(token);
-    if (typeof window !== "undefined") {
-      localStorage.setItem("edon_agent_token", token);
+  const handleTestFlow = async () => {
+    setTestingFlow(true);
+    setTestResult(null);
+    try {
+      const res = await edonApi.evaluateAction({
+        action_type: "email.send",
+        action_payload: { to: "test@example.com", subject: "Onboarding test" },
+      });
+      setTestResult({
+        verdict: res.decision || "UNKNOWN",
+        reason: res.decision_reason || res.reason_code || "Policy evaluated.",
+      });
+    } catch (err: unknown) {
+      setTestResult({
+        verdict: "ERROR",
+        reason: err instanceof Error ? err.message : "Test request failed.",
+      });
+    } finally {
+      setTestingFlow(false);
     }
-    toast({ title: "Agent key created", description: "Save and copy your key." });
   };
 
-  const saveLlmKey = () => {
-    if (llmTokenType === "apikey" && llmApiKey.trim().length < 12) {
-      toast({ title: "Invalid API key", description: "Paste a valid provider API key.", variant: "destructive" });
-      return;
-    }
-    if (typeof window !== "undefined") {
-      localStorage.setItem("edon_llm_model", selectedModel);
-      localStorage.setItem("edon_llm_provider", selectedProvider);
-      localStorage.setItem("edon_llm_api_key", llmApiKey.trim());
-    }
-    toast({ title: "LLM settings saved", description: "Your LLM provider details are saved." });
+  const canProceed = () => {
+    if (step === 1) return true; // can always skip
+    if (step === 2) return selectedPack !== null;
+    if (step === 3) return true;
+    return true;
   };
 
-  const connectedChannels = Object.entries(channelToggles)
-    .filter(([, enabled]) => enabled)
-    .map(([name]) => name);
-
-  const sendToChat = (message: string) => {
-    if (typeof window === "undefined") return;
-    window.dispatchEvent(new CustomEvent("edon-chat-open"));
-    window.dispatchEvent(new CustomEvent("edon-chat-command", { detail: { message } }));
+  const nextStep = () => {
+    if (step < TOTAL_STEPS) setStep((s) => s + 1);
+  };
+  const prevStep = () => {
+    if (step > 1) setStep((s) => s - 1);
   };
 
   return (
     <div className="min-h-screen">
       <TopNav />
-      <main className="container mx-auto px-6 py-10 space-y-8">
-        <div>
-          <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">EDON Quickstart Flow</p>
-          <h1 className="text-3xl font-semibold mt-2">Go live in five steps</h1>
-          <p className="text-sm text-muted-foreground max-w-3xl mt-2">
-            Configure your model, access keys, channels, and safety mode. Everything you choose is enforced the same way by EDON.
-          </p>
+      <main className="container mx-auto px-6 py-8 max-w-2xl">
+
+        {/* Header */}
+        <div className="flex items-start justify-between mb-8">
+          <div>
+            <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">B2B Onboarding</p>
+            <h1 className="text-2xl font-semibold mt-1">Set up EDON</h1>
+          </div>
+          <Link
+            to="/"
+            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Skip setup →
+          </Link>
         </div>
 
-        <Card className="glass-card">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-3">
-              <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-white/10 text-xs font-semibold text-foreground/80">
-                1
-              </span>
-              Pick Your AI Model
-            </CardTitle>
-            <CardDescription>Select the model you want to run. Change later in Settings.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3 text-sm">
-            <div className="grid grid-cols-4 gap-4 text-xs uppercase tracking-widest text-muted-foreground px-4">
-              <div>Model</div>
-              <div>Provider</div>
-              <div className="col-span-2">Strengths</div>
-            </div>
-            <div className="rounded-xl border border-white/10 overflow-hidden">
-              {modelRows.map((item) => (
-                <div
-                  key={item.name}
-                  className={`grid grid-cols-4 gap-4 px-4 py-3 text-sm border-b border-white/5 ${
-                    selectedModel === item.name ? "bg-white/5" : ""
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <span>{item.name}</span>
-                  </div>
-                  <div className="text-muted-foreground">{item.provider}</div>
-                  <div className="col-span-2 flex items-center justify-between gap-4 text-muted-foreground">
-                    <span>{item.strengths} · {item.note}</span>
-                    <Button size="sm" variant="ghost" onClick={() => setSelectedModel(item.name)}>
-                      {selectedModel === item.name ? "Selected" : "Choose"}
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="glass-card">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-3">
-              <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-white/10 text-xs font-semibold text-foreground/80">
-                2
-              </span>
-              Add Access Keys
-            </CardTitle>
-            <CardDescription>
-              EDON needs secure credentials to operate your agent safely. Access keys are stored locally and only used according to your safety policies.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="grid lg:grid-cols-2 gap-6 text-sm">
-            <div className="space-y-4">
-              <div className="rounded-lg border border-white/10 bg-white/5 p-4 space-y-4">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex items-center gap-2">
-                    <Sparkles className="h-4 w-4 text-emerald-300" />
-                    <div>
-                      <p className="font-medium">LLM Access Key (Your AI Brain)</p>
-                      <p className="text-xs text-muted-foreground">
-                        Choose how EDON connects to your AI model. OAuth is easiest and safest.
-                      </p>
-                    </div>
-                  </div>
-                  <Badge variant="outline" className="border-white/10 text-muted-foreground">
-                    {llmTokenType === "oauth" ? "OAuth" : llmTokenType === "apikey" ? "API Key" : "Local"}
-                  </Badge>
-                </div>
-
-                <div className="grid gap-3">
-                  <div className="flex flex-wrap gap-2">
-                    <Button size="sm" variant={llmTokenType === "oauth" ? "default" : "outline"} onClick={() => setLlmTokenType("oauth")}>
-                      OAuth (recommended)
-                    </Button>
-                    <Button size="sm" variant={llmTokenType === "apikey" ? "default" : "outline"} onClick={() => setLlmTokenType("apikey")}>
-                      API Key
-                    </Button>
-                    <Button size="sm" variant={llmTokenType === "local" ? "default" : "outline"} onClick={() => setLlmTokenType("local")}>
-                      Local Model
-                    </Button>
-                  </div>
-
-                  {llmTokenType === "oauth" && (
-                    <div className="grid gap-2 text-xs text-muted-foreground">
-                      <div className="flex items-center gap-2">
-                        <ShieldCheck className="h-3.5 w-3.5 text-emerald-300" />
-                        <span>Sign in securely with your AI provider. No keys to paste, credits auto-applied.</span>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        <Button size="sm" variant="outline" onClick={() => toast({ title: "OAuth flow", description: "OAuth is configured in Settings." })}>
-                          Connect via OAuth
-                        </Button>
-                        {providerLinks[selectedProvider] && (
-                          <a href={providerLinks[selectedProvider]} target="_blank" rel="noreferrer">
-                            <Button size="sm" className="bg-white/10 hover:bg-white/20 text-foreground border border-white/10">
-                              Get provider credits
-                            </Button>
-                          </a>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {llmTokenType === "apikey" && (
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <Link2 className="h-3.5 w-3.5 text-cyan-300" />
-                        <span>Paste your existing provider API key.</span>
-                      </div>
-                      <Input
-                        value={llmApiKey}
-                        onChange={(e) => setLlmApiKey(e.target.value)}
-                        placeholder="Input key here"
-                        className="bg-secondary/50"
-                      />
-                      <div className="flex flex-wrap gap-2">
-                        <Button size="sm" variant="outline" onClick={saveLlmKey}>Save LLM Key</Button>
-                        <Button size="sm" variant="ghost" onClick={() => copyValue("LLM API key", llmApiKey)}>
-                          <Copy className="h-3 w-3 mr-1" /> Copy
-                        </Button>
-                        {providerLinks[selectedProvider] && (
-                          <a href={providerLinks[selectedProvider]} target="_blank" rel="noreferrer">
-                            <Button size="sm" variant="ghost">Get API key</Button>
-                          </a>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {llmTokenType === "local" && (
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <Cpu className="h-3.5 w-3.5 text-purple-300" />
-                      <span>Use a model running on your machine for full privacy. Connect local endpoint in Settings.</span>
-                    </div>
-                  )}
-
-                  <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-                    <HelpCircle className="h-3.5 w-3.5" />
-                    <span>This key lets EDON connect to your AI model to process commands. EDON cannot use it outside your policies.</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="rounded-lg border border-white/10 bg-white/5 p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <KeyRound className="h-4 w-4 text-emerald-300" />
-                    <span className="font-medium">Agent Access Key (Required)</span>
-                  </div>
-                  <Badge variant="outline" className="border-white/10 text-muted-foreground">Required</Badge>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  This key lets EDON control your agent safely and locally.
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  <Button size="sm" onClick={generateAgentToken}>Generate Secure Key</Button>
-                  <Button size="sm" variant="ghost" onClick={() => copyValue("Agent access key", agentToken)}>
-                    <Copy className="h-3 w-3 mr-1" /> Copy
-                  </Button>
-                </div>
-                <Input value={agentToken} readOnly placeholder="Generated key appears here" className="bg-secondary/50" />
-                <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-                  <HelpCircle className="h-3.5 w-3.5" />
-                  <span>Stored locally in your browser/session. Revocable anytime. Needed for EDON to execute tasks safely.</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
-                <CollapsibleTrigger className="flex items-center justify-between w-full rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-sm">
-                  <span className="font-medium">Optional Connection Key (Advanced)</span>
-                  <ChevronDown className={`h-4 w-4 transition ${advancedOpen ? "rotate-180" : ""}`} />
-                </CollapsibleTrigger>
-                <CollapsibleContent className="mt-3 rounded-lg border border-white/10 bg-white/5 p-4 space-y-2">
-                  <p className="text-xs text-muted-foreground">
-                    Advanced integration for multi-agent environments. Leave empty if unsure.
-                  </p>
-                  <Input
-                    value={gatewayToken}
-                    onChange={(e) => setGatewayToken(e.target.value)}
-                    placeholder="Paste connection key"
-                    className="bg-secondary/50"
-                  />
-                  <div className="flex gap-2">
-                    <Button size="sm" variant="outline" onClick={() => copyValue("Connection key", gatewayToken)}>
-                      <Copy className="h-3 w-3 mr-1" /> Copy
-                    </Button>
-                  </div>
-                  <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-                    <HelpCircle className="h-3.5 w-3.5" />
-                    <span>Only needed if you want EDON to connect to external agent frameworks or multi-agent pipelines.</span>
-                  </div>
-                </CollapsibleContent>
-              </Collapsible>
-              <div className="rounded-lg border border-white/10 bg-white/5 p-4 text-xs text-muted-foreground">
-                Access keys are stored locally for this browser session only.
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="glass-card">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-3">
-              <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-white/10 text-xs font-semibold text-foreground/80">
-                3
-              </span>
-              Connect a Channel
-            </CardTitle>
-            <CardDescription>All channels governed the same way. One brain. One policy.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4 text-sm">
-            <div className="grid md:grid-cols-[1fr_2fr] gap-6">
-              <div className="space-y-3">
-                <p className="text-xs uppercase tracking-widest text-muted-foreground">Primary channel</p>
-                <Select value={primaryChannel} onValueChange={setPrimaryChannel}>
-                  <SelectTrigger className="bg-secondary/50">
-                    <SelectValue placeholder="Select channel" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {channelOptions.map((channel) => (
-                      <SelectItem key={channel} value={channel}>{channel}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">You can enable multiple channels.</p>
-              </div>
-              <div className="grid sm:grid-cols-2 gap-3">
-                {channelOptions.map((channel) => (
-                  <div key={channel} className="flex items-center justify-between rounded-lg border border-white/10 bg-white/5 px-4 py-3">
-                    <span>{channel}</span>
-                    <Switch
-                      checked={channelToggles[channel]}
-                      onCheckedChange={(checked) =>
-                        setChannelToggles((prev) => ({ ...prev, [channel]: checked }))
-                      }
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="grid lg:grid-cols-3 gap-4">
-              <div className="rounded-lg border border-white/10 bg-white/5 p-4 space-y-2">
-                <p className="text-xs uppercase tracking-widest text-muted-foreground">Slack</p>
-                <p className="text-sm text-muted-foreground">Connect your workspace and slash commands.</p>
-                <Button size="sm" variant="outline" onClick={() => toast({ title: "Slack setup", description: "OAuth flow opens in Settings." })}>
-                  Connect Slack
-                </Button>
-              </div>
-              <div className="rounded-lg border border-white/10 bg-white/5 p-4 space-y-2">
-                <p className="text-xs uppercase tracking-widest text-muted-foreground">API</p>
-                <p className="text-sm text-muted-foreground">Use the agent access key for API calls.</p>
-                <Button size="sm" variant="ghost" onClick={() => copyValue("Agent access key", agentToken)}>
-                  <Copy className="h-3 w-3 mr-1" /> Copy key
-                </Button>
-              </div>
-              <div className="rounded-lg border border-white/10 bg-white/5 p-4 space-y-2">
-                <p className="text-xs uppercase tracking-widest text-muted-foreground">Email</p>
-                <p className="text-sm text-muted-foreground">Forward commands to your agent inbox.</p>
-                <Button size="sm" variant="outline" onClick={() => toast({ title: "Email setup", description: "Email channel configuration is in Settings." })}>
-                  Configure Email
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="glass-card">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-3">
-              <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-white/10 text-xs font-semibold text-foreground/80">
-                4
-              </span>
-              Choose Safety Mode
-            </CardTitle>
-            <CardDescription>Each mode defines what EDON can do, what it blocks, and how it escalates.</CardDescription>
-          </CardHeader>
-          <CardContent className="grid lg:grid-cols-2 gap-4 text-sm">
-            {governanceModes.map((modeItem) => (
+        {/* Progress */}
+        <div className="mb-8">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs text-muted-foreground">Step {step} of {TOTAL_STEPS}</p>
+            <p className="text-xs text-muted-foreground">{Math.round((step / TOTAL_STEPS) * 100)}% complete</p>
+          </div>
+          <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
+            <motion.div
+              className="h-full bg-primary rounded-full"
+              initial={{ width: 0 }}
+              animate={{ width: `${(step / TOTAL_STEPS) * 100}%` }}
+              transition={{ duration: 0.3 }}
+            />
+          </div>
+          <div className="flex justify-between mt-3">
+            {["Connect Backend", "Choose Policy", "Your Token", "Test Flow"].map((label, i) => (
               <button
+                key={i}
                 type="button"
-                key={modeItem.key}
-                onClick={() => setMode(modeItem.key)}
-                className={`text-left rounded-lg border p-4 transition ${
-                  mode === modeItem.key ? "border-emerald-500/40 bg-emerald-500/10" : "border-white/10 bg-white/5"
+                onClick={() => setStep(i + 1)}
+                className={`text-xs transition-colors ${
+                  step === i + 1
+                    ? "text-primary font-medium"
+                    : step > i + 1
+                    ? "text-foreground/60"
+                    : "text-muted-foreground/40"
                 }`}
               >
-                <div className="flex items-center justify-between">
-                  <span className="font-medium">{modeItem.title}</span>
-                  {mode === modeItem.key && (
-                    <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30">Selected</Badge>
-                  )}
-                </div>
-                <p className="text-muted-foreground mt-2"><span className="text-foreground/90">Can:</span> {modeItem.can}</p>
-                <p className="text-muted-foreground mt-2"><span className="text-foreground/90">EDON blocks:</span> {modeItem.blocks}</p>
-                <p className="text-muted-foreground mt-2"><span className="text-foreground/90">Escalation:</span> {modeItem.escalation}</p>
+                {step > i + 1 ? <span className="inline-flex items-center gap-1"><Check className="h-3 w-3 text-primary" />{label}</span> : label}
               </button>
             ))}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
-        <Card className="glass-card">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-3">
-              <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-white/10 text-xs font-semibold text-foreground/80">
-                5
-              </span>
-              Send a Sample Command
-            </CardTitle>
-            <CardDescription>One-click send + example prompts to confirm end-to-end.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4 text-sm">
-            <div className="grid md:grid-cols-2 gap-3">
-              {exampleCommands.map((command) => (
-                <button
-                  key={command}
-                  type="button"
-                  onClick={() => sendToChat(command)}
-                  className="rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-left text-muted-foreground transition hover:text-foreground hover:border-white/20"
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={step}
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            transition={{ duration: 0.25 }}
+          >
+
+            {/* ── STEP 1: Connect Backend ─────────────── */}
+            {step === 1 && (
+              <div className="glass-card p-6 space-y-5">
+                <div>
+                  <h2 className="text-lg font-semibold mb-1">Connect your agent backend</h2>
+                  <p className="text-sm text-muted-foreground">
+                    EDON sits between your agent and your backend. Point us at your backend URL so we can govern and proxy requests.
+                  </p>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Backend URL</Label>
+                    <div className="flex items-center gap-2">
+                      <Globe className="h-4 w-4 text-muted-foreground shrink-0" />
+                      <Input
+                        value={backendUrl}
+                        onChange={(e) => { setBackendUrl(e.target.value); setConnectionResult(null); }}
+                        placeholder="https://your-agent-backend.example.com"
+                        className="bg-secondary/50"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Auth Token <span className="text-muted-foreground/50">(optional)</span></Label>
+                    <Input
+                      type="password"
+                      value={authToken}
+                      onChange={(e) => setAuthToken(e.target.value)}
+                      placeholder="Bearer token for your backend"
+                      className="bg-secondary/50"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="probe"
+                      checked={probeConnection}
+                      onCheckedChange={(v) => setProbeConnection(!!v)}
+                    />
+                    <Label htmlFor="probe" className="text-sm cursor-pointer">Probe connection before saving</Label>
+                  </div>
+                </div>
+
+                {connectionResult === "ok" && (
+                  <div className="flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-400">
+                    <Check className="h-4 w-4 shrink-0" /> Connection successful
+                  </div>
+                )}
+                {connectionResult === "fail" && (
+                  <div className="flex items-center gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-400">
+                    <X className="h-4 w-4 shrink-0" /> Connection failed — check URL and token
+                  </div>
+                )}
+
+                <div className="flex items-center gap-3 pt-1">
+                  <Button
+                    onClick={handleTestConnection}
+                    variant="outline"
+                    disabled={testingConnection || !backendUrl.trim()}
+                    className="gap-2"
+                  >
+                    {testingConnection ? (
+                      <><div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" /> Testing…</>
+                    ) : (
+                      "Test Connection"
+                    )}
+                  </Button>
+                  <button
+                    type="button"
+                    onClick={nextStep}
+                    className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    I'll set this up later →
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* ── STEP 2: Choose Policy ─────────────── */}
+            {step === 2 && (
+              <div className="space-y-5">
+                <div className="glass-card p-6">
+                  <h2 className="text-lg font-semibold mb-1">Set your governance policy</h2>
+                  <p className="text-sm text-muted-foreground">
+                    Choose how strictly EDON governs your agent's actions. You can change this any time.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 gap-3">
+                  {POLICY_OPTIONS.map((opt) => {
+                    const Icon = opt.icon;
+                    const isSelected = selectedPack === opt.packName;
+                    return (
+                      <button
+                        key={opt.packName}
+                        type="button"
+                        onClick={() => { setSelectedPack(opt.packName); setPackApplied(false); }}
+                        className={`w-full text-left rounded-xl border px-5 py-4 transition-all ${
+                          isSelected
+                            ? "border-primary/50 bg-primary/10 ring-1 ring-primary/30"
+                            : "border-white/10 bg-white/5 hover:bg-white/10"
+                        }`}
+                      >
+                        <div className="flex items-start gap-4">
+                          <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
+                            isSelected ? "bg-primary/20" : "bg-white/10"
+                          }`}>
+                            <Icon className={`h-5 w-5 ${isSelected ? "text-primary" : "text-foreground/80"}`} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <p className="font-semibold">{opt.name}</p>
+                              <Badge variant="outline" className={`text-[10px] ${opt.riskColor}`}>
+                                {opt.riskLevel} risk
+                              </Badge>
+                              {isSelected && (
+                                <Badge className="bg-primary/20 text-primary border-primary/30 text-[10px] ml-auto">
+                                  <Check className="h-2.5 w-2.5 mr-1" /> Selected
+                                </Badge>
+                              )}
+                            </div>
+                            <p className="text-sm text-muted-foreground mb-2">{opt.description}</p>
+                            <ul className="space-y-0.5">
+                              {opt.bullets.map((b) => (
+                                <li key={b} className="text-xs text-muted-foreground flex items-center gap-1.5">
+                                  <span className="w-1 h-1 rounded-full bg-muted-foreground/50 shrink-0" />
+                                  {b}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {packApplied && (
+                  <div className="flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-400">
+                    <Check className="h-4 w-4 shrink-0" /> Policy applied successfully
+                  </div>
+                )}
+
+                <Button
+                  onClick={handleApplyPolicy}
+                  disabled={!selectedPack || applyingPack || packApplied}
+                  className="w-full gap-2"
                 >
-                  {command}
-                </button>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+                  {applyingPack ? (
+                    <><div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" /> Applying…</>
+                  ) : packApplied ? (
+                    <><Check className="h-4 w-4" /> Applied</>
+                  ) : (
+                    "Apply Policy"
+                  )}
+                </Button>
+              </div>
+            )}
 
-        <Card className="glass-card">
-          <CardHeader>
-            <CardTitle>Summary</CardTitle>
-            <CardDescription>Model, access keys, channels, and safety mode in one view.</CardDescription>
-          </CardHeader>
-          <CardContent className="grid md:grid-cols-2 gap-4 text-sm">
-            <div className="rounded-lg border border-white/10 bg-white/5 px-4 py-3">
-              <p className="text-xs uppercase tracking-widest text-muted-foreground">Model</p>
-              <p className="mt-2">{selectedModel} · {selectedProvider}</p>
-            </div>
-            <div className="rounded-lg border border-white/10 bg-white/5 px-4 py-3">
-              <p className="text-xs uppercase tracking-widest text-muted-foreground">Access Keys</p>
-              <p className="mt-2">LLM key: {llmTokenType === "apikey" && llmApiKey ? "Saved" : llmTokenType === "oauth" ? "OAuth" : "Local"}</p>
-              <p className="text-muted-foreground">Agent key: {agentToken ? "Generated" : "Not set"}</p>
-            </div>
-            <div className="rounded-lg border border-white/10 bg-white/5 px-4 py-3">
-              <p className="text-xs uppercase tracking-widest text-muted-foreground">Channels</p>
-              <p className="mt-2">{connectedChannels.length ? connectedChannels.join(", ") : "None connected"}</p>
-            </div>
-            <div className="rounded-lg border border-white/10 bg-white/5 px-4 py-3">
-              <p className="text-xs uppercase tracking-widest text-muted-foreground">Safety</p>
-              <p className="mt-2">{governanceModes.find((item) => item.key === mode)?.title}</p>
-            </div>
-          </CardContent>
-        </Card>
+            {/* ── STEP 3: EDON Token ─────────────────── */}
+            {step === 3 && (
+              <div className="glass-card p-6 space-y-5">
+                <div>
+                  <h2 className="text-lg font-semibold mb-1">Your EDON API token</h2>
+                  <p className="text-sm text-muted-foreground">
+                    Your agents use this token to authenticate with EDON. Keep it secret.
+                  </p>
+                </div>
+
+                {edonToken ? (
+                  <>
+                    <div className="space-y-2">
+                      <Label className="text-xs text-muted-foreground">Token</Label>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          value={tokenVisible ? edonToken : edonToken.replace(/./g, "•")}
+                          readOnly
+                          className="bg-secondary/50 font-mono text-sm flex-1"
+                        />
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setTokenVisible((v) => !v)}
+                          className="shrink-0"
+                        >
+                          {tokenVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={copyToken}
+                          className="gap-1.5 shrink-0"
+                        >
+                          <Copy className="h-3.5 w-3.5" /> Copy
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label className="text-xs text-muted-foreground">How to use it</Label>
+                      <pre className="bg-secondary/50 rounded-lg p-4 text-xs font-mono text-foreground/80 overflow-x-auto whitespace-pre-wrap">
+                        {CODE_SNIPPET}
+                      </pre>
+                    </div>
+                  </>
+                ) : (
+                  <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3">
+                    <div className="flex items-start gap-2">
+                      <AlertTriangle className="h-4 w-4 text-amber-400 shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-sm font-medium text-amber-400">No token found</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Go to Settings → Gateway Connection to add your EDON access key.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-xs text-muted-foreground">
+                  Your token is stored locally and never shared with third parties. Revoke it any time from your account dashboard.
+                </div>
+              </div>
+            )}
+
+            {/* ── STEP 4: Test Flow ─────────────────── */}
+            {step === 4 && (
+              <div className="glass-card p-6 space-y-5">
+                <div>
+                  <h2 className="text-lg font-semibold mb-1">Send a test request</h2>
+                  <p className="text-sm text-muted-foreground">
+                    Verify everything is working end-to-end. We'll send a sample <code className="font-mono text-xs bg-white/10 px-1 rounded">email.send</code> request through EDON.
+                  </p>
+                </div>
+
+                <div className="rounded-lg bg-secondary/30 border border-white/10 px-4 py-3 text-xs font-mono text-muted-foreground">
+                  <p><span className="text-primary">POST</span> /v1/action</p>
+                  <p className="mt-1">{"{"} "action_type": "email.send", "agent_id": "onboarding-test" {"}"}</p>
+                </div>
+
+                <Button
+                  onClick={handleTestFlow}
+                  disabled={testingFlow}
+                  className="w-full gap-2"
+                >
+                  {testingFlow ? (
+                    <><div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" /> Sending…</>
+                  ) : (
+                    "Send Test Request"
+                  )}
+                </Button>
+
+                {testResult && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className={`rounded-xl border px-4 py-4 space-y-2 ${
+                      testResult.verdict === "ALLOW"
+                        ? "border-emerald-500/30 bg-emerald-500/10"
+                        : testResult.verdict === "BLOCK"
+                        ? "border-red-500/30 bg-red-500/10"
+                        : testResult.verdict === "CONFIRM"
+                        ? "border-amber-500/30 bg-amber-500/10"
+                        : "border-white/10 bg-white/5"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Badge
+                        variant="outline"
+                        className={`text-sm font-mono ${
+                          testResult.verdict === "ALLOW"
+                            ? "border-emerald-500/40 text-emerald-400 bg-emerald-500/20"
+                            : testResult.verdict === "BLOCK"
+                            ? "border-red-500/40 text-red-400 bg-red-500/20"
+                            : "border-amber-500/40 text-amber-400 bg-amber-500/20"
+                        }`}
+                      >
+                        {testResult.verdict}
+                      </Badge>
+                      <span className="text-sm text-muted-foreground">Decision received</span>
+                    </div>
+                    <p className="text-sm text-foreground/80">{testResult.reason}</p>
+                  </motion.div>
+                )}
+
+                {testResult && (
+                  <Button
+                    onClick={() => navigate("/")}
+                    className="w-full gap-2"
+                    variant="outline"
+                  >
+                    Go to Dashboard <ChevronRight className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+            )}
+
+          </motion.div>
+        </AnimatePresence>
+
+        {/* Navigation */}
+        <div className="flex items-center justify-between mt-6">
+          <Button
+            variant="ghost"
+            onClick={prevStep}
+            disabled={step === 1}
+            className="gap-2"
+          >
+            <ChevronLeft className="h-4 w-4" /> Back
+          </Button>
+
+          {step < TOTAL_STEPS && (
+            <Button
+              onClick={nextStep}
+              disabled={!canProceed()}
+              className="gap-2"
+            >
+              {step === 2 && !packApplied ? "Skip for now" : "Next"}
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
       </main>
     </div>
   );

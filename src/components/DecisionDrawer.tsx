@@ -72,6 +72,10 @@ export function DecisionDrawer({ decision, open, onClose }: DecisionDrawerProps)
                   <span className="text-muted-foreground">Reason Code</span>
                   <span className="font-mono">{decision.reason_code ?? '—'}</span>
                 </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Intent ID</span>
+                  <span className="font-mono text-xs break-all">{decision.intent_id ?? '—'}</span>
+                </div>
               </div>
             </section>
 

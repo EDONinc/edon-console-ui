@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { ChatShell } from "@/components/ChatShell";
 import { edonApi } from "@/lib/api";
 import Dashboard from "./pages/Dashboard";
 import Decisions from "./pages/Decisions";
@@ -14,6 +15,10 @@ import Policies from "./pages/Policies";
 import Settings from "./pages/Settings";
 import Quickstart from "./pages/Quickstart";
 import NotFound from "./pages/NotFound";
+import Profile from "./pages/Profile";
+import ApiKeys from "./pages/ApiKeys";
+import Billing from "./pages/Billing";
+import Team from "./pages/Team";
 import { AccessGate } from "@/components/AccessGate";
 
 const queryClient = new QueryClient();
@@ -67,6 +72,10 @@ const AppRoutes = () => {
       <Route path="/policies" element={<Policies />} />
       <Route path="/settings" element={<Settings />} />
       <Route path="/quickstart" element={<Quickstart />} />
+      <Route path="/profile" element={<Profile />} />
+      <Route path="/api-keys" element={<ApiKeys />} />
+      <Route path="/billing" element={<Billing />} />
+      <Route path="/team" element={<Team />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );
@@ -210,6 +219,7 @@ const App = () => {
         >
           <ErrorBoundary>
             <AppRoutes />
+            <ChatShell />
           </ErrorBoundary>
         </BrowserRouter>
       </TooltipProvider>

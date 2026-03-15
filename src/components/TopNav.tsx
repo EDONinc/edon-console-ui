@@ -1,9 +1,17 @@
-import { NavLink, useLocation } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ShieldCheck, Gauge, ListChecks, FileSearch, Settings2, KeyRound, LogOut } from 'lucide-react';
+import { ShieldCheck, Gauge, ListChecks, FileSearch, Settings2, KeyRound, LogOut, User, CreditCard, Users, Key, ChevronDown } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { edonApi } from '@/lib/api';
 import { Badge } from '@/components/ui/badge';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 const navItems = [
   { to: '/', label: 'Dashboard', icon: Gauge },
@@ -15,7 +23,11 @@ const navItems = [
 
 export function TopNav() {
   const location = useLocation();
+  const navigate = useNavigate();
   const [isConnected, setIsConnected] = useState(true);
+  const [userEmail, setUserEmail] = useState(() => localStorage.getItem('edon_user_email') || '');
+  const [userPlan, setUserPlan] = useState(() => localStorage.getItem('edon_plan') || 'Starter');
+  const [displayName, setDisplayName] = useState(() => localStorage.getItem('edon_display_name') || '');
   const _hasAnyToken = () =>
     Boolean(
       localStorage.getItem('edon_token') ||
@@ -41,6 +53,9 @@ export function TopNav() {
     // Listen for storage changes (when mock mode is toggled in Settings)
     const handleStorageChange = () => {
       setHasToken(typeof window !== 'undefined' && _hasAnyToken());
+      setUserEmail(localStorage.getItem('edon_user_email') || '');
+      setUserPlan(localStorage.getItem('edon_plan') || 'Starter');
+      setDisplayName(localStorage.getItem('edon_display_name') || '');
     };
     window.addEventListener('storage', handleStorageChange);
     window.addEventListener('edon-auth-updated', handleStorageChange as EventListener);
@@ -99,32 +114,9 @@ export function TopNav() {
               })}
             </nav>
 
-            {/* Status Badges */}
-            <div className="flex items-center gap-2">
-              {hasToken && (
-                <>
-                  <Badge variant="outline" className="border-sky-500/40 text-sky-300 bg-sky-500/10 flex items-center gap-1.5 text-xs">
-                    <KeyRound className="w-3 h-3" />
-                    <span className="hidden sm:inline">Signed in</span>
-                  </Badge>
-                  <button
-                    title="Sign out"
-                    onClick={() => {
-                      localStorage.removeItem('edon_token');
-                      localStorage.removeItem('edon_api_key');
-                      localStorage.removeItem('edon_session_token');
-                      localStorage.removeItem('edon_user_email');
-                      localStorage.removeItem('edon_plan');
-                      // Notify app so hasToken updates and AccessGate is shown
-                      window.dispatchEvent(new Event('edon-auth-updated'));
-                      window.location.replace('/');
-                    }}
-                    className="flex items-center justify-center w-7 h-7 rounded-full border border-white/10 bg-white/5 text-muted-foreground hover:text-red-400 hover:border-red-500/40 hover:bg-red-500/10 transition-colors"
-                  >
-                    <LogOut className="w-3.5 h-3.5" />
-                  </button>
-                </>
-              )}
+            {/* Right side: status + user menu */}
+            <div className="flex items-center gap-2 shrink-0">
+              {/* Live/Offline badge */}
               <Badge
                 variant="outline"
                 className={`flex items-center gap-1.5 text-xs ${
@@ -133,9 +125,71 @@ export function TopNav() {
                     : 'border-red-500/40 text-red-400 bg-red-500/10'
                 }`}
               >
-                <span className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-emerald-400' : 'bg-red-400'}`} />
+                <span className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-emerald-400 animate-pulse' : 'bg-red-400'}`} />
                 <span className="hidden sm:inline">{isConnected ? 'Live' : 'Offline'}</span>
               </Badge>
+
+              {hasToken && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button className="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-2 py-1.5 hover:bg-white/10 transition-colors">
+                      {/* Avatar */}
+                      <div className="w-6 h-6 rounded-full bg-[#64dc78]/20 border border-[#64dc78]/40 flex items-center justify-center text-[10px] font-bold text-[#64dc78]">
+                        {(displayName || userEmail || 'U').charAt(0).toUpperCase()}
+                      </div>
+                      <span className="hidden sm:inline text-xs text-foreground/80 max-w-[120px] truncate">
+                        {displayName || userEmail || 'Account'}
+                      </span>
+                      <ChevronDown className="w-3 h-3 text-muted-foreground hidden sm:block" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56 bg-[#0f1117] border border-white/10">
+                    <DropdownMenuLabel className="pb-1">
+                      <p className="text-sm font-medium text-foreground truncate">{displayName || userEmail || 'My Account'}</p>
+                      {userEmail && displayName && (
+                        <p className="text-xs text-muted-foreground truncate">{userEmail}</p>
+                      )}
+                      <Badge variant="outline" className="mt-1 text-[10px] border-[#64dc78]/30 text-[#64dc78] bg-[#64dc78]/10">
+                        {userPlan}
+                      </Badge>
+                    </DropdownMenuLabel>
+                    <DropdownMenuSeparator className="bg-white/10" />
+                    <DropdownMenuItem onClick={() => navigate('/profile')} className="gap-2 cursor-pointer hover:bg-white/5">
+                      <User className="w-4 h-4 text-muted-foreground" />
+                      <span>Profile</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => navigate('/team')} className="gap-2 cursor-pointer hover:bg-white/5">
+                      <Users className="w-4 h-4 text-muted-foreground" />
+                      <span>Team</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => navigate('/api-keys')} className="gap-2 cursor-pointer hover:bg-white/5">
+                      <Key className="w-4 h-4 text-muted-foreground" />
+                      <span>API Keys</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => navigate('/billing')} className="gap-2 cursor-pointer hover:bg-white/5">
+                      <CreditCard className="w-4 h-4 text-muted-foreground" />
+                      <span>Billing</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator className="bg-white/10" />
+                    <DropdownMenuItem onClick={() => navigate('/settings')} className="gap-2 cursor-pointer hover:bg-white/5">
+                      <Settings2 className="w-4 h-4 text-muted-foreground" />
+                      <span>Settings</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator className="bg-white/10" />
+                    <DropdownMenuItem
+                      className="gap-2 cursor-pointer text-red-400 hover:bg-red-500/10 hover:text-red-400 focus:text-red-400"
+                      onClick={() => {
+                        ['edon_token','edon_api_key','edon_session_token','edon_user_email','edon_plan'].forEach(k => localStorage.removeItem(k));
+                        window.dispatchEvent(new Event('edon-auth-updated'));
+                        window.location.replace('/');
+                      }}
+                    >
+                      <LogOut className="w-4 h-4" />
+                      <span>Sign out</span>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
             </div>
           </div>
         </div>

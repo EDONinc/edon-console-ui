@@ -424,15 +424,17 @@ class EdonApiClient {
   async getMetrics() {
     // We don't have /stats in the gateway.
     // So we approximate metrics using /decisions/query counts per verdict.
-    const [allow, block, total] = await Promise.all([
+    const [allow, block, confirm, total] = await Promise.all([
       this.request<{ total: number }>(`/decisions/query?verdict=ALLOW&limit=1000`),
       this.request<{ total: number }>(`/decisions/query?verdict=BLOCK&limit=1000`),
+      this.request<{ total: number }>(`/decisions/query?verdict=CONFIRM&limit=1000`),
       this.request<{ total: number }>(`/decisions/query?limit=1000`),
     ]);
 
     return {
       allowed_24h: allow.total || 0,
       blocked_24h: block.total || 0,
+      confirm_24h: confirm.total || 0,
       decisions_total: total.total || 0,
       // Latency is not currently exposed by the gateway JSON API.
       latency_p50: 0,
@@ -664,6 +666,51 @@ class EdonApiClient {
         context: payload.intent_id ? { intent_id: payload.intent_id } : {},
       }),
     });
+  }
+
+  async deleteApiKey(id: string) {
+    return this.request<{ success: boolean }>(`/billing/api-keys/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async getTeamMembers() {
+    try {
+      return await this.request<{
+        members: Array<{
+          id: string;
+          name?: string;
+          email: string;
+          role?: string;
+          status?: string;
+          joined_at?: string;
+        }>;
+        total: number;
+      }>('/team/members');
+    } catch {
+      return null;
+    }
+  }
+
+  async inviteTeamMember(email: string, role: string) {
+    try {
+      return await this.request<{ success: boolean; message?: string }>('/team/invite', {
+        method: 'POST',
+        body: JSON.stringify({ email, role }),
+      });
+    } catch {
+      return null;
+    }
+  }
+
+  async removeTeamMember(memberId: string) {
+    try {
+      return await this.request<{ success: boolean }>(`/team/members/${memberId}`, {
+        method: 'DELETE',
+      });
+    } catch {
+      return null;
+    }
   }
 }
 

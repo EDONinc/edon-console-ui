@@ -6,6 +6,8 @@ import { formatJSON } from '@/lib/redact';
 import { toolOp } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
 import {
   Table,
   TableBody,
@@ -21,7 +23,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Download, FileJson, FileSpreadsheet, RefreshCcw, Eye, Search } from 'lucide-react';
+import { Download, FileJson, FileSpreadsheet, RefreshCcw, Eye, Share2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import {
   Select,
@@ -31,6 +33,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
+
+const SHARED_AUDITS_KEY = 'edon_shared_audits';
 
 const verdictStyles = {
   allowed: 'badge-allowed',
@@ -42,6 +46,45 @@ const verdictClass = (verdict?: string) => {
   const v = (verdict ?? '').toLowerCase();
   return verdictStyles[v as keyof typeof verdictStyles] || 'badge-allowed';
 };
+
+interface SharedAudit {
+  id: string;
+  record_id: string;
+  record_summary: {
+    action: string;
+    verdict: string;
+    timestamp: string;
+  };
+  shared_by: string;
+  shared_with: string[];
+  note: string;
+  shared_at: string;
+}
+
+const MOCK_TEAM_MEMBERS = [
+  { email: 'alice@example.com', name: 'Alice Chen' },
+  { email: 'bob@example.com', name: 'Bob Martinez' },
+  { email: 'carol@example.com', name: 'Carol Smith' },
+];
+
+function loadSharedAudits(): SharedAudit[] {
+  try {
+    const raw = localStorage.getItem(SHARED_AUDITS_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveSharedAudits(items: SharedAudit[]) {
+  localStorage.setItem(SHARED_AUDITS_KEY, JSON.stringify(items));
+}
+
+function generateId() {
+  return `share_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
 
 export default function Audit() {
   const [records, setRecords] = useState<Decision[]>([]);
@@ -61,6 +104,22 @@ export default function Audit() {
   const [timeRangeStart, setTimeRangeStart] = useState('');
   const [timeRangeEnd, setTimeRangeEnd] = useState('');
 
+  // Filter tab: 'all' | 'shared'
+  const [filterTab, setFilterTab] = useState<'all' | 'shared'>('all');
+  const [sharedAudits, setSharedAudits] = useState<SharedAudit[]>([]);
+
+  // Share modal state
+  const [shareRecord, setShareRecord] = useState<Decision | null>(null);
+  const [shareModalOpen, setShareModalOpen] = useState(false);
+  const [shareEmails, setShareEmails] = useState<string[]>([]);
+  const [shareEmailInput, setShareEmailInput] = useState('');
+  const [shareNote, setShareNote] = useState('');
+  const [sharing, setSharing] = useState(false);
+
+  useEffect(() => {
+    setSharedAudits(loadSharedAudits());
+  }, []);
+
   const fetchAudit = useCallback(async () => {
     if (auditForbidden) return;
     setLoading(true);
@@ -69,7 +128,7 @@ export default function Audit() {
       if (verdictFilter !== 'all') params.verdict = verdictFilter;
       if (agentFilter) params.agent_id = agentFilter;
       if (intentIdFilter) params.intent_id = intentIdFilter;
-      params.limit = 1000; // Get more results for client-side filtering
+      params.limit = 1000;
 
       const result = await edonApi.getAudit(params);
 
@@ -78,15 +137,14 @@ export default function Audit() {
         return;
       }
 
-      // Client-side filtering for policy_version and time range
       let filtered = result.records;
-      
+
       if (policyVersionFilter) {
-        filtered = filtered.filter(r => 
+        filtered = filtered.filter(r =>
           r.policy_version?.toLowerCase().includes(policyVersionFilter.toLowerCase())
         );
       }
-      
+
       if (timeRangeStart) {
         const startDate = new Date(timeRangeStart);
         filtered = filtered.filter(r => {
@@ -94,19 +152,19 @@ export default function Audit() {
           return recordDate >= startDate;
         });
       }
-      
+
       if (timeRangeEnd) {
         const endDate = new Date(timeRangeEnd);
-        endDate.setHours(23, 59, 59, 999); // End of day
+        endDate.setHours(23, 59, 59, 999);
         filtered = filtered.filter(r => {
           const recordDate = new Date(r.created_at || r.timestamp);
           return recordDate <= endDate;
         });
       }
-      
+
       setRecords(filtered);
       setPage(1);
-    } catch (error) {
+    } catch {
       toast({
         title: 'Error',
         description: 'Failed to fetch audit records',
@@ -120,6 +178,12 @@ export default function Audit() {
   useEffect(() => {
     fetchAudit();
   }, [fetchAudit]);
+
+  // Compute displayed records based on filter tab
+  const sharedRecordIds = new Set(sharedAudits.map((s) => s.record_id));
+  const displayedRecords = filterTab === 'shared'
+    ? records.filter((r) => sharedRecordIds.has(r.id || r.action_id || ''))
+    : records;
 
   const sanitizeCsvValue = (value: unknown) => {
     const str = value == null ? '' : String(value);
@@ -140,7 +204,7 @@ export default function Audit() {
       r.reason_code,
       r.latency_ms,
     ]);
-    
+
     const csv = [headers.join(','), ...rows.map((r) => r.map(sanitizeCsvValue).join(','))].join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
@@ -177,6 +241,62 @@ export default function Audit() {
     setModalOpen(true);
   };
 
+  const openShare = (record: Decision) => {
+    setShareRecord(record);
+    setShareEmails([]);
+    setShareEmailInput('');
+    setShareNote('');
+    setShareModalOpen(true);
+  };
+
+  const addShareEmail = (email: string) => {
+    const trimmed = email.trim();
+    if (!trimmed || shareEmails.includes(trimmed)) return;
+    setShareEmails((prev) => [...prev, trimmed]);
+    setShareEmailInput('');
+  };
+
+  const removeShareEmail = (email: string) => {
+    setShareEmails((prev) => prev.filter((e) => e !== email));
+  };
+
+  const handleShare = async () => {
+    if (!shareRecord) return;
+    if (shareEmails.length === 0) {
+      toast({ title: 'Add recipients', description: 'Enter at least one email address.', variant: 'destructive' });
+      return;
+    }
+    setSharing(true);
+    await new Promise((r) => setTimeout(r, 400));
+    const userEmail = localStorage.getItem('edon_user_email') || 'you@example.com';
+    const shareObj: SharedAudit = {
+      id: generateId(),
+      record_id: shareRecord.id || shareRecord.action_id || shareRecord.timestamp || '',
+      record_summary: {
+        action: toolOp(shareRecord.tool),
+        verdict: shareRecord.verdict,
+        timestamp: shareRecord.created_at || shareRecord.timestamp,
+      },
+      shared_by: userEmail,
+      shared_with: shareEmails,
+      note: shareNote.trim(),
+      shared_at: new Date().toISOString(),
+    };
+    const next = [shareObj, ...sharedAudits];
+    saveSharedAudits(next);
+    setSharedAudits(next);
+    const names = shareEmails.map((e) => {
+      const member = MOCK_TEAM_MEMBERS.find((m) => m.email === e);
+      return member ? member.name : e;
+    });
+    toast({
+      title: 'Audit record shared',
+      description: `Shared with ${names.join(', ')}`,
+    });
+    setSharing(false);
+    setShareModalOpen(false);
+  };
+
   if (auditForbidden) {
     return (
       <div className="min-h-screen">
@@ -194,13 +314,13 @@ export default function Audit() {
   return (
     <div className="min-h-screen">
       <TopNav />
-      
+
       <main className="container mx-auto px-6 py-8">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
         >
-          <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center justify-between mb-6">
             <div>
               <h1 className="text-2xl font-bold mb-1">Audit Log</h1>
               <p className="text-muted-foreground">Complete audit trail of all decisions</p>
@@ -215,10 +335,28 @@ export default function Audit() {
                 Export JSON
               </Button>
               <Button onClick={fetchAudit} variant="outline" className="gap-2">
-              <RefreshCcw className="w-4 h-4" />
+                <RefreshCcw className="w-4 h-4" />
                 Refresh
               </Button>
             </div>
+          </div>
+
+          {/* Filter tabs */}
+          <div className="flex items-center gap-1 mb-4 bg-white/5 border border-white/10 rounded-xl p-1 w-fit">
+            {(['all', 'shared'] as const).map((tab) => (
+              <button
+                key={tab}
+                type="button"
+                onClick={() => setFilterTab(tab)}
+                className={`text-xs px-3 py-1.5 rounded-lg transition-colors ${
+                  filterTab === tab
+                    ? 'bg-white/10 text-foreground font-medium'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                {tab === 'all' ? 'All records' : `Shared (${sharedRecordIds.size})`}
+              </button>
+            ))}
           </div>
 
           {/* Filters */}
@@ -291,7 +429,7 @@ export default function Audit() {
                 <Button onClick={fetchAudit} disabled={loading}>
                   {loading ? 'Applying…' : 'Apply Filters'}
                 </Button>
-                  <Button 
+                <Button
                   onClick={() => {
                     const now = new Date();
                     const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000);
@@ -300,11 +438,11 @@ export default function Audit() {
                     fetchAudit();
                   }}
                   variant="outline"
-                    disabled={loading}
+                  disabled={loading}
                 >
                   Last 5 Min
                 </Button>
-                  <Button 
+                <Button
                   onClick={() => {
                     setVerdictFilter('all');
                     setAgentFilter('');
@@ -315,7 +453,7 @@ export default function Audit() {
                     fetchAudit();
                   }}
                   variant="outline"
-                    disabled={loading}
+                  disabled={loading}
                 >
                   Clear
                 </Button>
@@ -347,70 +485,91 @@ export default function Audit() {
                       </TableCell>
                     </TableRow>
                   ))
-                ) : records.length === 0 ? (
+                ) : displayedRecords.length === 0 ? (
                   <TableRow className="border-white/10">
                     <TableCell colSpan={8}>
                       <div className="py-8 text-center text-sm text-muted-foreground">
-                        No audit records found for the selected filters.
+                        {filterTab === 'shared'
+                          ? 'No shared audit records yet. Share records using the Share button.'
+                          : 'No audit records found for the selected filters.'}
                       </div>
                     </TableCell>
                   </TableRow>
                 ) : (
-                  records
+                  displayedRecords
                     .slice((page - 1) * pageSize, page * pageSize)
-                    .map((record, index) => (
-                    <TableRow
-                      key={record.id || record.action_id || record.timestamp || String(index)}
-                      className="border-white/10 hover:bg-white/5 transition-colors"
-                    >
-                      <TableCell className="font-mono text-sm">
-                        {new Date(record.created_at || record.timestamp).toLocaleString()}
-                      </TableCell>
-                      <TableCell>
-                        <Badge className={verdictClass(record.verdict)}>
-                          {record.verdict}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="font-mono">{toolOp(record.tool)}</TableCell>
-                      <TableCell className="font-mono text-muted-foreground">
-                        {record.agent_id}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {record.reason_code}
-                      </TableCell>
-                      <TableCell className="font-mono text-xs text-muted-foreground">
-                        {record.intent_id ? (
-                          <span className="truncate max-w-[200px] block" title={record.intent_id}>
-                            {record.intent_id}
-                          </span>
-                        ) : (
-                          <span className="text-muted-foreground/50">—</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="font-mono text-xs text-muted-foreground">
-                        {record.policy_version || <span className="text-muted-foreground/50">—</span>}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => viewPayload(record)}
-                          className="gap-1"
+                    .map((record, index) => {
+                      const isShared = sharedRecordIds.has(record.id || record.action_id || '');
+                      return (
+                        <TableRow
+                          key={record.id || record.action_id || record.timestamp || String(index)}
+                          className="border-white/10 hover:bg-white/5 transition-colors"
                         >
-                          <Eye className="w-4 h-4" />
-                          View
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))
+                          <TableCell className="font-mono text-sm">
+                            {new Date(record.created_at || record.timestamp).toLocaleString()}
+                          </TableCell>
+                          <TableCell>
+                            <Badge className={verdictClass(record.verdict)}>
+                              {record.verdict}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="font-mono">{toolOp(record.tool)}</TableCell>
+                          <TableCell className="font-mono text-muted-foreground">
+                            {record.agent_id}
+                          </TableCell>
+                          <TableCell className="text-muted-foreground">
+                            {record.reason_code}
+                          </TableCell>
+                          <TableCell className="font-mono text-xs text-muted-foreground">
+                            {record.intent_id ? (
+                              <span className="truncate max-w-[200px] block" title={record.intent_id}>
+                                {record.intent_id}
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground/50">—</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="font-mono text-xs text-muted-foreground">
+                            {record.policy_version || <span className="text-muted-foreground/50">—</span>}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex items-center justify-end gap-1">
+                              {isShared && (
+                                <Badge variant="outline" className="text-[10px] border-primary/30 text-primary bg-primary/10 mr-1">
+                                  Shared
+                                </Badge>
+                              )}
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => openShare(record)}
+                                className="gap-1 h-7 px-2"
+                              >
+                                <Share2 className="w-3.5 h-3.5" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => viewPayload(record)}
+                                className="gap-1 h-7 px-2"
+                              >
+                                <Eye className="w-4 h-4" />
+                                View
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
                 )}
               </TableBody>
             </Table>
           </div>
-          {!loading && records.length > 0 && (
+
+          {!loading && displayedRecords.length > 0 && (
             <div className="flex items-center justify-between text-sm text-muted-foreground mt-4">
               <div>
-                Showing {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, records.length)} of {records.length}
+                Showing {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, displayedRecords.length)} of {displayedRecords.length}
               </div>
               <div className="flex items-center gap-2">
                 <Button
@@ -424,8 +583,8 @@ export default function Audit() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setPage((p) => (p * pageSize >= records.length ? p : p + 1))}
-                  disabled={page * pageSize >= records.length}
+                  onClick={() => setPage((p) => (p * pageSize >= displayedRecords.length ? p : p + 1))}
+                  disabled={page * pageSize >= displayedRecords.length}
                 >
                   Next
                 </Button>
@@ -440,34 +599,194 @@ export default function Audit() {
         <DialogContent className="glass-card border-white/10 max-w-2xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-3">
-              <span className="font-mono">{toolOp(selectedRecord?.tool)}</span>
+              <span className="font-mono text-base">{toolOp(selectedRecord?.tool)}</span>
               {selectedRecord && (
-                <Badge className={verdictStyles[selectedRecord.verdict]}>
+                <Badge className={verdictClass(selectedRecord.verdict)}>
                   {selectedRecord.verdict}
                 </Badge>
               )}
             </DialogTitle>
           </DialogHeader>
-          
-          <ScrollArea className="max-h-[500px]">
-            <div className="space-y-4">
-              <div>
-                <h4 className="text-sm font-semibold text-muted-foreground mb-2">Request Payload (Redacted)</h4>
-                <pre className="p-4 bg-secondary/50 rounded-lg text-sm font-mono overflow-x-auto">
-                  {selectedRecord?.request_payload
-                    ? formatJSON(selectedRecord.request_payload)
-                    : 'No payload available'}
-                </pre>
+
+          <ScrollArea className="max-h-[480px]">
+            <div className="space-y-4 pr-1">
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                {[
+                  { label: 'Timestamp', value: selectedRecord?.created_at ? new Date(selectedRecord.created_at).toLocaleString() : (selectedRecord?.timestamp ? new Date(selectedRecord.timestamp).toLocaleString() : '—') },
+                  { label: 'Agent ID', value: selectedRecord?.agent_id || '—' },
+                  { label: 'Intent ID', value: selectedRecord?.intent_id || '—' },
+                  { label: 'Safety Version', value: selectedRecord?.policy_version || '—' },
+                  { label: 'Reason Code', value: selectedRecord?.reason_code || '—' },
+                  { label: 'Latency', value: selectedRecord?.latency_ms != null ? `${selectedRecord.latency_ms}ms` : '—' },
+                ].map(({ label, value }) => (
+                  <div key={label} className="bg-secondary/30 rounded-lg px-3 py-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-0.5">{label}</p>
+                    <p className="font-mono text-xs text-foreground/90 break-all">{value}</p>
+                  </div>
+                ))}
               </div>
-              
+
               {selectedRecord?.explanation && (
                 <div>
-                  <h4 className="text-sm font-semibold text-muted-foreground mb-2">Explanation</h4>
-                  <p className="text-sm">{selectedRecord.explanation}</p>
+                  <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Decision Explanation</h4>
+                  <p className="text-sm bg-secondary/30 rounded-lg px-3 py-2">{selectedRecord.explanation}</p>
                 </div>
               )}
+
+              <div>
+                <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Request Payload</h4>
+                <pre className="p-4 bg-secondary/50 rounded-lg text-xs font-mono overflow-x-auto whitespace-pre-wrap break-all">
+                  {selectedRecord?.request_payload
+                    ? formatJSON(selectedRecord.request_payload)
+                    : '—'}
+                </pre>
+              </div>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  if (selectedRecord) {
+                    setModalOpen(false);
+                    openShare(selectedRecord);
+                  }
+                }}
+                className="gap-2"
+              >
+                <Share2 className="h-4 w-4" /> Share this record
+              </Button>
             </div>
           </ScrollArea>
+        </DialogContent>
+      </Dialog>
+
+      {/* Share Modal */}
+      <Dialog open={shareModalOpen} onOpenChange={setShareModalOpen}>
+        <DialogContent className="glass-card border-white/10 max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Share2 className="h-4 w-4" /> Share Audit Record
+            </DialogTitle>
+          </DialogHeader>
+
+          {shareRecord && (
+            <div className="space-y-4 mt-2">
+              {/* Record summary */}
+              <div className="rounded-lg border border-white/10 bg-secondary/30 px-3 py-2 flex items-center gap-3 text-sm">
+                <Badge className={verdictClass(shareRecord.verdict)}>{shareRecord.verdict}</Badge>
+                <span className="font-mono text-xs text-foreground/80">{toolOp(shareRecord.tool)}</span>
+                <span className="text-muted-foreground text-xs ml-auto">
+                  {new Date(shareRecord.created_at || shareRecord.timestamp).toLocaleString()}
+                </span>
+              </div>
+
+              {/* Share with */}
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground">Share with</Label>
+
+                {/* Suggestions */}
+                <div className="flex flex-wrap gap-1.5">
+                  {MOCK_TEAM_MEMBERS.map((member) => (
+                    <button
+                      key={member.email}
+                      type="button"
+                      onClick={() => addShareEmail(member.email)}
+                      disabled={shareEmails.includes(member.email)}
+                      className={`text-xs px-2 py-1 rounded-lg border transition-colors ${
+                        shareEmails.includes(member.email)
+                          ? 'border-primary/30 bg-primary/10 text-primary cursor-default'
+                          : 'border-white/10 bg-white/5 text-muted-foreground hover:text-foreground hover:border-white/20'
+                      }`}
+                    >
+                      {member.name}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Manual input */}
+                <div className="flex gap-2">
+                  <Input
+                    value={shareEmailInput}
+                    onChange={(e) => setShareEmailInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ',') {
+                        e.preventDefault();
+                        addShareEmail(shareEmailInput);
+                      }
+                    }}
+                    placeholder="Add email address..."
+                    className="bg-secondary/50 text-sm"
+                  />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => addShareEmail(shareEmailInput)}
+                    disabled={!shareEmailInput.trim()}
+                  >
+                    Add
+                  </Button>
+                </div>
+
+                {/* Selected emails */}
+                {shareEmails.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {shareEmails.map((email) => (
+                      <Badge
+                        key={email}
+                        variant="outline"
+                        className="text-xs border-white/20 text-foreground/80 gap-1"
+                      >
+                        {email}
+                        <button
+                          type="button"
+                          onClick={() => removeShareEmail(email)}
+                          className="ml-1 text-muted-foreground hover:text-foreground"
+                        >
+                          ×
+                        </button>
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Note */}
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Note (optional)</Label>
+                <Textarea
+                  value={shareNote}
+                  onChange={(e) => setShareNote(e.target.value.slice(0, 200))}
+                  placeholder="Add context for your team..."
+                  className="bg-secondary/50 text-sm min-h-[80px] resize-none"
+                  maxLength={200}
+                />
+                <p className="text-xs text-muted-foreground/50 text-right">{shareNote.length}/200</p>
+              </div>
+
+              {/* Visibility */}
+              <div className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 flex items-center gap-2 text-xs text-muted-foreground">
+                <div className="w-3 h-3 rounded-full border-2 border-primary bg-primary/30 shrink-0" />
+                <span>Team members only</span>
+                <span className="text-muted-foreground/40 ml-auto">Only option available</span>
+              </div>
+
+              {/* Actions */}
+              <div className="flex items-center gap-2 pt-1">
+                <Button
+                  onClick={handleShare}
+                  disabled={sharing || shareEmails.length === 0}
+                  className="flex-1 gap-2"
+                >
+                  {sharing ? (
+                    <><div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" /> Sharing…</>
+                  ) : (
+                    <><Share2 className="h-4 w-4" /> Share</>
+                  )}
+                </Button>
+                <Button variant="outline" onClick={() => setShareModalOpen(false)}>Cancel</Button>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>
