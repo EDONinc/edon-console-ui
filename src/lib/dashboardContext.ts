@@ -128,6 +128,116 @@ export async function fetchDashboardContext(): Promise<DashboardContext> {
 }
 
 /**
+ * Build a rich system prompt for the LLM that includes the full dashboard snapshot.
+ * This is sent as the system message so the model answers from real-time data.
+ */
+export function buildSystemPrompt(ctx: DashboardContext): string {
+  const activePack = ctx.health?.active_preset
+    ? ctx.health.active_preset
+    : localStorage.getItem("edon_active_policy_pack") || "unknown";
+
+  const teamMembers: Array<{ name: string; email: string; role: string }> = (() => {
+    try { return JSON.parse(localStorage.getItem("edon_team_members") || "[]"); } catch { return []; }
+  })();
+
+  const sharedAudits: Array<{ record_summary: { action?: string; verdict?: string }; note?: string }> = (() => {
+    try { return JSON.parse(localStorage.getItem("edon_shared_audits") || "[]"); } catch { return []; }
+  })();
+
+  const lines: string[] = [
+    "You are EDON's governance intelligence assistant — an AI embedded in the EDON Agent UI dashboard.",
+    "You have real-time access to the customer's governance data: decisions, audit trail, blocked actions, policies, metrics, and agent activity.",
+    "Answer questions clearly and concisely. Use the dashboard snapshot below to give accurate, data-driven answers.",
+    "When showing lists or data, format it clearly. If data is unavailable, say so honestly.",
+    "",
+    "## Live Dashboard Snapshot",
+    `Fetched at: ${ctx.fetched_at}`,
+    "",
+  ];
+
+  // Metrics
+  const a = ctx.metrics?.allowed_24h ?? 0;
+  const b = ctx.metrics?.blocked_24h ?? 0;
+  const c = ctx.metrics?.confirm_24h ?? 0;
+  lines.push(
+    "### Metrics (last 24h)",
+    `- Allowed: ${a}`,
+    `- Blocked: ${b}`,
+    `- Confirm/escalate: ${c}`,
+    `- Total: ${ctx.metrics?.decisions_total ?? a + b + c}`,
+    ctx.metrics?.latency_p50 ? `- Latency p50: ${ctx.metrics.latency_p50}ms` : "",
+    ctx.metrics?.latency_p95 ? `- Latency p95: ${ctx.metrics.latency_p95}ms` : "",
+    ""
+  );
+
+  // Gateway
+  if (ctx.health) {
+    const uptime = ctx.health.uptime_seconds;
+    lines.push(
+      "### Gateway",
+      `- Status: ${ctx.health.status ?? "unknown"}`,
+      `- Active policy pack: ${activePack}`,
+      uptime != null ? `- Uptime: ${Math.floor(uptime / 3600)}h ${Math.floor((uptime % 3600) / 60)}m` : "",
+      ""
+    );
+  }
+
+  // Top block reasons
+  if (ctx.block_reasons.length > 0) {
+    lines.push("### Top block reasons");
+    ctx.block_reasons.slice(0, 8).forEach((r) => lines.push(`- ${r.reason}: ${r.count} times`));
+    lines.push("");
+  }
+
+  // Recent decisions sample
+  if (ctx.recent_decisions.length > 0) {
+    lines.push("### Recent decisions (latest 20)");
+    ctx.recent_decisions.slice(0, 20).forEach((d) => {
+      const tool = d.tool && d.op ? `${d.tool}.${d.op}` : d.tool || "—";
+      lines.push(`- [${d.verdict}] ${tool} | agent: ${d.agent_id ?? "—"} | reason: ${d.reason_code ?? "—"} | ${d.explanation?.slice(0, 80) ?? ""}`);
+    });
+    lines.push("");
+  }
+
+  // Recent audit sample
+  if (ctx.recent_audit.length > 0) {
+    lines.push("### Recent audit events (latest 20)");
+    ctx.recent_audit.slice(0, 20).forEach((d) => {
+      const tool = d.tool && d.op ? `${d.tool}.${d.op}` : d.tool || "—";
+      lines.push(`- [${d.verdict}] ${tool} | agent: ${d.agent_id ?? "—"} | ${new Date(d.timestamp).toLocaleString()}`);
+    });
+    lines.push("");
+  }
+
+  // Policy packs
+  if (ctx.policy_packs.length > 0) {
+    lines.push("### Available policy packs");
+    ctx.policy_packs.forEach((p) => lines.push(`- ${p.name} (${p.risk_level}): ${p.description}`));
+    lines.push("");
+  }
+
+  // Team
+  if (teamMembers.length > 0) {
+    lines.push("### Team members");
+    teamMembers.forEach((m) => lines.push(`- ${m.name} <${m.email}> — ${m.role}`));
+    lines.push("");
+  }
+
+  // Shared audits
+  if (sharedAudits.length > 0) {
+    lines.push("### Shared audit records");
+    sharedAudits.slice(0, 10).forEach((s) => {
+      const action = s.record_summary?.action ?? "—";
+      const verdict = s.record_summary?.verdict ?? "—";
+      lines.push(`- ${action} [${verdict}]${s.note ? ` — note: ${s.note}` : ""}`);
+    });
+    lines.push("");
+  }
+
+  return lines.filter((l) => l !== undefined).join("\n");
+}
+
+/**
  * Generate a text summary of dashboard context for inclusion in an LLM prompt.
  * The backend can paste this into the system or user message so the model answers from real data.
  */

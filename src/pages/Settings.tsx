@@ -486,11 +486,12 @@ export default function Settings() {
           </div>
 
           <Tabs defaultValue="general" className="w-full">
-            <TabsList className="w-full grid grid-cols-4 bg-white/5 border border-white/10 rounded-xl p-1 mb-6">
+            <TabsList className="w-full grid grid-cols-5 bg-white/5 border border-white/10 rounded-xl p-1 mb-6">
               <TabsTrigger value="general" className="text-xs data-[state=active]:bg-white/10 data-[state=active]:text-foreground rounded-lg">General</TabsTrigger>
               <TabsTrigger value="channels" className="text-xs data-[state=active]:bg-white/10 data-[state=active]:text-foreground rounded-lg">Channels</TabsTrigger>
               <TabsTrigger value="integrations" className="text-xs data-[state=active]:bg-white/10 data-[state=active]:text-foreground rounded-lg">Integrations</TabsTrigger>
               <TabsTrigger value="webhooks" className="text-xs data-[state=active]:bg-white/10 data-[state=active]:text-foreground rounded-lg">Webhooks</TabsTrigger>
+              <TabsTrigger value="chat" className="text-xs data-[state=active]:bg-white/10 data-[state=active]:text-foreground rounded-lg">Chat AI</TabsTrigger>
             </TabsList>
 
             {/* ── GENERAL TAB ─────────────────────────── */}
@@ -1138,6 +1139,12 @@ export default function Settings() {
                 </div>
               )}
             </TabsContent>
+
+            {/* ── CHAT AI TAB ─────────────────────────── */}
+            <TabsContent value="chat" className="space-y-6 mt-0">
+              <ChatAiTab />
+            </TabsContent>
+
           </Tabs>
 
         </motion.div>
@@ -1197,6 +1204,188 @@ export default function Settings() {
           </div>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────
+   Chat AI Configuration tab
+───────────────────────────────────────────────────────── */
+function ChatAiTab() {
+  const { toast } = useToast();
+  const [provider, setProvider] = useState<"anthropic" | "openai" | "gateway">(
+    () => (localStorage.getItem("edon_chat_provider") as "anthropic" | "openai" | "gateway") || "gateway"
+  );
+  const [apiKey, setApiKey] = useState(() => localStorage.getItem("edon_chat_api_key") || "");
+  const [model, setModel] = useState(() => localStorage.getItem("edon_chat_model") || "");
+  const [showKey, setShowKey] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const ANTHROPIC_MODELS = ["claude-opus-4-6", "claude-sonnet-4-6", "claude-haiku-4-5-20251001"];
+  const OPENAI_MODELS = ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-3.5-turbo"];
+  const defaultModel = provider === "anthropic" ? "claude-sonnet-4-6" : provider === "openai" ? "gpt-4o" : "";
+
+  const handleSave = async () => {
+    setSaving(true);
+    localStorage.setItem("edon_chat_provider", provider);
+    localStorage.setItem("edon_chat_api_key", apiKey.trim());
+    localStorage.setItem("edon_chat_model", model || defaultModel);
+    window.dispatchEvent(new Event("edon-chat-config-updated"));
+    await new Promise((r) => setTimeout(r, 400));
+    setSaving(false);
+    toast({ title: "Chat AI saved", description: `Using ${provider === "anthropic" ? "Anthropic Claude" : provider === "openai" ? "OpenAI" : "EDON Gateway"}` });
+  };
+
+  const handleTest = () => {
+    localStorage.setItem("edon_chat_provider", provider);
+    localStorage.setItem("edon_chat_api_key", apiKey.trim());
+    localStorage.setItem("edon_chat_model", model || defaultModel);
+    window.dispatchEvent(new Event("edon-chat-config-updated"));
+    window.dispatchEvent(new Event("edon-chat-open"));
+    setTimeout(() => {
+      window.dispatchEvent(new CustomEvent("edon-chat-command", { detail: { message: "What's my gateway status and how many decisions were made in the last 24 hours?" } }));
+    }, 700);
+  };
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h3 className="text-sm font-semibold text-foreground mb-1">Chat AI Configuration</h3>
+        <p className="text-xs text-muted-foreground leading-relaxed">
+          Connect an LLM to power the EDON governance assistant. It receives your full dashboard — metrics, decisions, audit trail, policies, agent activity — as context on every message.
+        </p>
+      </div>
+
+      {/* Provider */}
+      <div className="space-y-3">
+        <Label className="text-xs text-muted-foreground">LLM Provider</Label>
+        <div className="grid grid-cols-3 gap-2">
+          {([
+            { id: "anthropic" as const, label: "Anthropic Claude", color: "border-orange-500/40 text-orange-300 bg-orange-500/10" },
+            { id: "openai" as const, label: "OpenAI", color: "border-sky-500/40 text-sky-300 bg-sky-500/10" },
+            { id: "gateway" as const, label: "Via EDON Gateway", color: "border-white/20 text-foreground/80 bg-white/5" },
+          ]).map((p) => (
+            <button
+              key={p.id}
+              onClick={() => { setProvider(p.id); setModel(""); }}
+              className={`rounded-xl border px-3 py-3 text-xs font-medium transition-all ${
+                provider === p.id
+                  ? p.color + " ring-1 ring-offset-0"
+                  : "border-white/10 text-muted-foreground bg-white/[0.02] hover:bg-white/5"
+              }`}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {provider !== "gateway" ? (
+        <>
+          {/* API Key */}
+          <div className="space-y-2">
+            <Label className="text-xs text-muted-foreground">
+              {provider === "anthropic" ? "Anthropic API Key" : "OpenAI API Key"}
+            </Label>
+            <div className="flex gap-2">
+              <Input
+                type={showKey ? "text" : "password"}
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+                placeholder={provider === "anthropic" ? "sk-ant-api03-..." : "sk-..."}
+                className="bg-secondary/50 font-mono text-sm flex-1"
+              />
+              <Button variant="outline" size="sm" onClick={() => setShowKey(!showKey)} className="shrink-0 text-xs">
+                {showKey ? "Hide" : "Show"}
+              </Button>
+            </div>
+            <p className="text-[10px] text-muted-foreground/60">
+              Stored in localStorage only — never sent to EDON servers. Calls go directly to {provider === "anthropic" ? "api.anthropic.com" : "api.openai.com"}.
+            </p>
+          </div>
+
+          {/* Model */}
+          <div className="space-y-2">
+            <Label className="text-xs text-muted-foreground">Model</Label>
+            <div className="flex flex-wrap gap-2">
+              {(provider === "anthropic" ? ANTHROPIC_MODELS : OPENAI_MODELS).map((m) => (
+                <button
+                  key={m}
+                  onClick={() => setModel(m)}
+                  className={`rounded-full border px-3 py-1 text-[11px] font-mono transition-colors ${
+                    (model || defaultModel) === m
+                      ? "border-[#64dc78]/40 bg-[#64dc78]/10 text-[#64dc78]"
+                      : "border-white/10 bg-white/5 text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {m}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Context info */}
+          <div className="rounded-xl border border-[#64dc78]/15 bg-[#64dc78]/5 p-4 space-y-2">
+            <p className="text-xs font-medium text-[#64dc78]">What the LLM sees on every message</p>
+            <ul className="space-y-1">
+              {[
+                "Live metrics: allowed / blocked / confirm counts (24h)",
+                "Up to 20 recent decisions and 20 audit events",
+                "Top block reasons with counts",
+                "Active policy pack and all available packs",
+                "Gateway health and uptime",
+                "Team members and shared audit records",
+                "Full multi-turn conversation history",
+              ].map((item) => (
+                <li key={item} className="flex items-start gap-2 text-xs text-muted-foreground">
+                  <span className="text-[#64dc78] mt-0.5 shrink-0">✓</span>
+                  {item}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </>
+      ) : (
+        <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4 space-y-3">
+          <p className="text-xs font-medium text-foreground">Using EDON Gateway as chat backend</p>
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            Messages are routed via your connected backend (configure in Integrations tab). Dashboard context is sent in the request args so your backend LLM can use it.
+          </p>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label className="text-[10px] text-muted-foreground">Tool name</Label>
+              <Input
+                defaultValue={localStorage.getItem("edon_chat_tool") || "chat"}
+                onBlur={(e) => localStorage.setItem("edon_chat_tool", e.target.value)}
+                className="bg-secondary/50 font-mono text-xs h-8"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[10px] text-muted-foreground">Action</Label>
+              <Input
+                defaultValue={localStorage.getItem("edon_chat_action") || "json"}
+                onBlur={(e) => localStorage.setItem("edon_chat_action", e.target.value)}
+                className="bg-secondary/50 font-mono text-xs h-8"
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="flex gap-3">
+        <Button
+          onClick={handleSave}
+          disabled={saving}
+          className="flex-1 bg-[#64dc78]/15 border border-[#64dc78]/30 text-[#64dc78] hover:bg-[#64dc78]/25 hover:border-[#64dc78]/50"
+        >
+          {saving ? "Saving..." : <><Save className="w-3.5 h-3.5 mr-2" />Save Configuration</>}
+        </Button>
+        {provider !== "gateway" && apiKey && (
+          <Button variant="outline" onClick={handleTest} className="shrink-0 text-xs">
+            Test Chat
+          </Button>
+        )}
+      </div>
     </div>
   );
 }
