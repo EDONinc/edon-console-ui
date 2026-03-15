@@ -22,7 +22,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Search, RefreshCcw } from 'lucide-react';
+import { Search, RefreshCcw, Download, ListChecks } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
 
@@ -142,6 +142,42 @@ export default function Decisions() {
     setDrawerOpen(true);
   };
 
+  const exportDecisions = (format: 'json' | 'csv') => {
+    if (decisions.length === 0) return;
+    let content: string;
+    let mime: string;
+    let ext: string;
+    if (format === 'json') {
+      content = JSON.stringify(decisions, null, 2);
+      mime = 'application/json';
+      ext = 'json';
+    } else {
+      const headers = ['id','timestamp','verdict','tool','agent_id','reason_code','intent_id','policy_version','latency_ms'];
+      const rows = decisions.map((d) => [
+        d.id ?? '',
+        d.timestamp ?? d.created_at ?? '',
+        d.verdict ?? '',
+        typeof d.tool === 'object' && d.tool ? [d.tool.name, d.tool.op].filter(Boolean).join('.') : String(d.tool ?? ''),
+        d.agent_id ?? '',
+        d.reason_code ?? '',
+        d.intent_id ?? '',
+        d.policy_version ?? '',
+        d.latency_ms ?? '',
+      ].map((v) => `"${String(v).replace(/"/g, '""')}"`).join(','));
+      content = [headers.join(','), ...rows].join('\n');
+      mime = 'text/csv';
+      ext = 'csv';
+    }
+    const blob = new Blob([content], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `edon-decisions-${new Date().toISOString().slice(0,10)}.${ext}`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast({ title: `Exported ${decisions.length} decisions as ${ext.toUpperCase()}` });
+  };
+
   return (
     <div className="min-h-screen">
       <TopNav />
@@ -161,10 +197,17 @@ export default function Decisions() {
               <h1 className="text-2xl font-bold mb-1">Decisions</h1>
               <p className="text-muted-foreground">View and analyze all agent decisions</p>
             </div>
-            <Button onClick={fetchDecisions} variant="outline" className="gap-2">
+            <div className="flex items-center gap-2">
+              <Button onClick={() => exportDecisions('csv')} variant="outline" size="sm" className="gap-1.5 text-xs" disabled={decisions.length === 0}>
+                <Download className="w-3.5 h-3.5" /> CSV
+              </Button>
+              <Button onClick={() => exportDecisions('json')} variant="outline" size="sm" className="gap-1.5 text-xs" disabled={decisions.length === 0}>
+                <Download className="w-3.5 h-3.5" /> JSON
+              </Button>
+              <Button onClick={fetchDecisions} variant="outline" size="sm" className="gap-1.5">
                 <RefreshCcw className="w-4 h-4" />
-              Refresh
-            </Button>
+              </Button>
+            </div>
           </div>
 
           {/* Filters */}
@@ -269,9 +312,19 @@ export default function Decisions() {
                   ))
                 ) : (decisions ?? []).length === 0 ? (
                   <TableRow className="border-white/10">
-                    <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
-                      No decisions recorded.{' '}
-                      <Link to="/audit" className="text-primary hover:underline">Check Audit</Link>
+                    <TableCell colSpan={8} className="py-16 text-center">
+                      <div className="flex flex-col items-center gap-3">
+                        <div className="w-12 h-12 rounded-full bg-white/5 border border-white/10 flex items-center justify-center">
+                          <ListChecks className="w-5 h-5 text-muted-foreground/50" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-muted-foreground">No decisions yet</p>
+                          <p className="text-xs text-muted-foreground/60 mt-1">
+                            Decisions appear here once agents start sending actions through EDON.
+                          </p>
+                        </div>
+                        <Link to="/audit" className="text-xs text-primary hover:underline">Check Audit →</Link>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ) : (

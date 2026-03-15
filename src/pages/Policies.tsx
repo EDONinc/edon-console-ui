@@ -994,276 +994,246 @@ export default function Policies() {
 
           {/* ── CUSTOM POLICIES ───────────────────────── */}
           <section className="mb-8">
-            <div className="glass-card p-6">
-              <div className="flex items-start justify-between gap-4 mb-6">
-                <div>
-                  <h2 className="text-base font-semibold flex items-center gap-2">
-                    <Plus className="w-4 h-4 text-primary" /> Custom Policies
-                  </h2>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Define allowed/blocked tools, confirmation requirements, rate limits, and agent-type scoping per pack.
-                  </p>
-                </div>
-                <Badge className="bg-primary/20 text-primary border-primary/30 text-xs shrink-0">
+
+            {/* Section header */}
+            <div className="flex items-center justify-between gap-4 mb-4">
+              <div>
+                <h2 className="text-base font-semibold flex items-center gap-2">
+                  <Plus className="w-4 h-4 text-primary" /> Custom Policies
+                </h2>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Define allowed/blocked tools, confirmation requirements, rate limits, and agent-type scoping per pack.
+                </p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <Badge className="bg-primary/20 text-primary border-primary/30 text-xs">
                   {customPolicies.length}/{customLimit} used
                 </Badge>
+                <Button
+                  size="sm" variant="outline"
+                  className="gap-1.5 text-xs h-8 border-white/10"
+                  onClick={() => { resetCustomForm(); setAdvancedOpen(true); }}
+                >
+                  <Plus className="w-3.5 h-3.5" /> New Policy
+                </Button>
               </div>
+            </div>
 
-              <div className="grid lg:grid-cols-[1fr_380px] gap-6">
-                {/* Builder form */}
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] uppercase tracking-widest text-muted-foreground">Pack Name *</label>
-                      <Input
-                        value={customName}
-                        onChange={(e) => setCustomName(e.target.value)}
-                        placeholder="e.g. Drone Safe Ops"
-                        className="bg-secondary/50 text-sm"
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] uppercase tracking-widest text-muted-foreground">Risk Level</label>
-                      <div className="flex gap-1.5">
-                        {(['low', 'medium', 'high'] as const).map((r) => (
-                          <button
-                            key={r}
-                            onClick={() => setRulesRiskLevel(r)}
-                            className={`flex-1 rounded-lg border py-1.5 text-[10px] font-medium capitalize transition-colors ${
-                              rulesRiskLevel === r ? getRiskColor(r) : 'border-white/10 text-muted-foreground hover:bg-white/5'
-                            }`}
-                          >
-                            {r}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-
+            {/* Builder form — shown when composing or editing */}
+            {(advancedOpen || editingId) && (
+              <div className="glass-card p-5 mb-6">
+                <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-4">
+                  {editingId ? 'Edit Policy' : 'New Custom Policy'}
+                </p>
+                <div className="grid md:grid-cols-2 gap-4 mb-4">
                   <div className="space-y-1.5">
-                    <label className="text-[10px] uppercase tracking-widest text-muted-foreground">Description</label>
-                    <Textarea
-                      value={customDescription}
-                      onChange={(e) => setCustomDescription(e.target.value)}
-                      placeholder="What does this policy allow/block and why?"
-                      className="bg-secondary/50 min-h-[60px] text-sm"
+                    <label className="text-[10px] uppercase tracking-widest text-muted-foreground">Pack Name *</label>
+                    <Input
+                      value={customName}
+                      onChange={(e) => setCustomName(e.target.value)}
+                      placeholder="e.g. Drone Safe Ops"
+                      className="bg-secondary/50 text-sm"
                     />
                   </div>
-
-                  {/* Agent types scope */}
                   <div className="space-y-1.5">
-                    <label className="text-[10px] uppercase tracking-widest text-muted-foreground">Apply to agent types</label>
-                    <div className="flex flex-wrap gap-1.5">
-                      {AGENT_TYPES.map((t) => (
+                    <label className="text-[10px] uppercase tracking-widest text-muted-foreground">Risk Level</label>
+                    <div className="flex gap-1.5">
+                      {(['low', 'medium', 'high'] as const).map((r) => (
                         <button
-                          key={t}
-                          onClick={() => setRulesAgentTypes((prev) =>
-                            prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]
-                          )}
-                          className={`rounded-full border px-2.5 py-1 text-xs transition-colors ${
-                            rulesAgentTypes.includes(t)
-                              ? 'border-[#64dc78]/40 bg-[#64dc78]/10 text-[#64dc78]'
-                              : 'border-white/10 bg-white/5 text-muted-foreground hover:text-foreground'
+                          key={r}
+                          onClick={() => setRulesRiskLevel(r)}
+                          className={`flex-1 rounded-lg border py-1.5 text-[10px] font-medium capitalize transition-colors ${
+                            rulesRiskLevel === r ? getRiskColor(r) : 'border-white/10 text-muted-foreground hover:bg-white/5'
                           }`}
                         >
-                          {t}
+                          {r}
                         </button>
                       ))}
                     </div>
                   </div>
+                </div>
 
-                  {/* Advanced rules collapsible */}
-                  {customName.trim() && (
-                    <div className="rounded-xl border border-white/10 overflow-hidden">
+                <div className="space-y-1.5 mb-4">
+                  <label className="text-[10px] uppercase tracking-widest text-muted-foreground">Description</label>
+                  <Textarea
+                    value={customDescription}
+                    onChange={(e) => setCustomDescription(e.target.value)}
+                    placeholder="What does this policy allow/block and why?"
+                    className="bg-secondary/50 min-h-[60px] text-sm"
+                  />
+                </div>
+
+                <div className="space-y-1.5 mb-4">
+                  <label className="text-[10px] uppercase tracking-widest text-muted-foreground">Apply to agent types</label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {AGENT_TYPES.map((t) => (
                       <button
-                        type="button"
-                        onClick={() => setAdvancedOpen((v) => !v)}
-                        className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium hover:bg-white/5 transition-colors"
+                        key={t}
+                        onClick={() => setRulesAgentTypes((prev) =>
+                          prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]
+                        )}
+                        className={`rounded-full border px-2.5 py-1 text-xs transition-colors ${
+                          rulesAgentTypes.includes(t)
+                            ? 'border-[#64dc78]/40 bg-[#64dc78]/10 text-[#64dc78]'
+                            : 'border-white/10 bg-white/5 text-muted-foreground hover:text-foreground'
+                        }`}
                       >
-                        <span className="flex items-center gap-2">
-                          <ShieldAlert className="w-4 h-4 text-muted-foreground" />
-                          Advanced Rules
-                          {(rulesAllowedTools.length + rulesBlockedTools.length + rulesConfirmActions.length) > 0 && (
-                            <Badge variant="outline" className="text-[10px] border-primary/30 text-primary">
-                              {rulesAllowedTools.length + rulesBlockedTools.length + rulesConfirmActions.length} rules defined
-                            </Badge>
-                          )}
-                        </span>
-                        <ChevronDown className={`h-4 w-4 transition-transform ${advancedOpen ? 'rotate-180' : ''}`} />
+                        {t}
                       </button>
-
-                      {advancedOpen && (
-                        <div className="px-4 pb-5 pt-1 border-t border-white/10 space-y-5">
-                          {/* Tool pickers */}
-                          <ToolPicker
-                            selected={rulesAllowedTools}
-                            onChange={setRulesAllowedTools}
-                            label="Allowed Tools"
-                            accentClass="border-emerald-500/30 text-emerald-400 bg-emerald-500/10"
-                          />
-                          <ToolPicker
-                            selected={rulesBlockedTools}
-                            onChange={setRulesBlockedTools}
-                            label="Blocked Tools"
-                            accentClass="border-red-500/30 text-red-400 bg-red-500/10"
-                          />
-
-                          {/* Confirmation requirements */}
-                          <div className="space-y-2">
-                            <Label className="text-xs text-muted-foreground">Require human confirmation for</Label>
-                            <div className="grid grid-cols-2 gap-1.5 max-h-48 overflow-y-auto rounded-lg border border-white/10 bg-white/[0.02] p-2">
-                              {CONFIRM_OPTIONS.map((opt) => (
-                                <label key={opt} className="flex items-center gap-2 px-2 py-1 rounded-md hover:bg-white/5 cursor-pointer">
-                                  <Checkbox
-                                    checked={rulesConfirmActions.includes(opt)}
-                                    onCheckedChange={(v) =>
-                                      setRulesConfirmActions((prev) => v ? [...prev, opt] : prev.filter((a) => a !== opt))
-                                    }
-                                    className="w-3 h-3"
-                                  />
-                                  <span className="text-[10px] font-mono text-muted-foreground">{opt}</span>
-                                </label>
-                              ))}
-                            </div>
-                          </div>
-
-                          {/* Rate limits + after hours */}
-                          <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-1.5">
-                              <Label className="text-xs text-muted-foreground">Max actions per hour</Label>
-                              <Input
-                                type="number"
-                                value={rulesMaxActions}
-                                onChange={(e) => setRulesMaxActions(Number(e.target.value))}
-                                min={1} max={100000}
-                                className="bg-secondary/50 text-sm"
-                              />
-                            </div>
-                            <div className="flex items-end pb-1">
-                              <label className="flex items-center gap-2 cursor-pointer">
-                                <Checkbox
-                                  checked={rulesBlockAfterHours}
-                                  onCheckedChange={(v) => setRulesBlockAfterHours(!!v)}
-                                />
-                                <span className="text-xs">Block after business hours</span>
-                              </label>
-                            </div>
-                          </div>
-
-                          {/* Internal notes */}
-                          <div className="space-y-1.5">
-                            <Label className="text-xs text-muted-foreground">Internal notes (visible only to your team)</Label>
-                            <Textarea
-                              value={customNotes}
-                              onChange={(e) => setCustomNotes(e.target.value)}
-                              placeholder="Context, compliance requirements, approval details..."
-                              className="bg-secondary/50 text-xs min-h-[60px]"
-                            />
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      onClick={handleSaveCustom}
-                      disabled={customPolicies.length >= customLimit && !editingId}
-                      className="gap-2"
-                    >
-                      {editingId ? 'Update Policy' : 'Create Policy'}
-                    </Button>
-                    {editingId && <Button variant="ghost" onClick={resetCustomForm}>Cancel</Button>}
-                    <span className="text-xs text-muted-foreground self-center">{remainingCustom} slot{remainingCustom !== 1 ? 's' : ''} remaining</span>
+                    ))}
                   </div>
                 </div>
 
-                {/* Custom policies list */}
-                <div className="space-y-3">
-                  {customPolicies.length === 0 ? (
-                    <div className="rounded-xl border border-dashed border-white/10 bg-white/[0.02] p-6 text-center">
-                      <ShieldCheck className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
-                      <p className="text-sm text-muted-foreground">No custom policies yet</p>
-                      <p className="text-xs text-muted-foreground/60 mt-1">Fill in the form to create your first pack</p>
-                    </div>
-                  ) : (
-                    customPolicies.map((policy) => (
-                      <div key={policy.id} className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
-                        <div className="flex items-start justify-between gap-2 mb-2">
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <p className="text-sm font-medium">{policy.name}</p>
-                              {policy.rules?.riskLevel && (
-                                <Badge variant="outline" className={`text-[9px] ${getRiskColor(policy.rules.riskLevel)}`}>
-                                  {policy.rules.riskLevel}
-                                </Badge>
-                              )}
-                            </div>
-                            <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{policy.description}</p>
-                          </div>
+                {/* Advanced rules */}
+                <div className="rounded-xl border border-white/10 overflow-hidden mb-4">
+                  <button
+                    type="button"
+                    onClick={() => setAdvancedOpen((v) => !v)}
+                    className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium hover:bg-white/5 transition-colors"
+                  >
+                    <span className="flex items-center gap-2">
+                      <ShieldAlert className="w-4 h-4 text-muted-foreground" />
+                      Advanced Rules
+                      {(rulesAllowedTools.length + rulesBlockedTools.length + rulesConfirmActions.length) > 0 && (
+                        <Badge variant="outline" className="text-[10px] border-primary/30 text-primary">
+                          {rulesAllowedTools.length + rulesBlockedTools.length + rulesConfirmActions.length} rules defined
+                        </Badge>
+                      )}
+                    </span>
+                    <ChevronDown className={`h-4 w-4 transition-transform ${advancedOpen ? 'rotate-180' : ''}`} />
+                  </button>
+                  {advancedOpen && (
+                    <div className="px-4 pb-5 pt-1 border-t border-white/10 space-y-5">
+                      <ToolPicker selected={rulesAllowedTools} onChange={setRulesAllowedTools} label="Allowed Tools" accentClass="border-emerald-500/30 text-emerald-400 bg-emerald-500/10" />
+                      <ToolPicker selected={rulesBlockedTools} onChange={setRulesBlockedTools} label="Blocked Tools" accentClass="border-red-500/30 text-red-400 bg-red-500/10" />
+                      <div className="space-y-2">
+                        <Label className="text-xs text-muted-foreground">Require human confirmation for</Label>
+                        <div className="grid grid-cols-2 gap-1.5 max-h-48 overflow-y-auto rounded-lg border border-white/10 bg-white/[0.02] p-2">
+                          {CONFIRM_OPTIONS.map((opt) => (
+                            <label key={opt} className="flex items-center gap-2 px-2 py-1 rounded-md hover:bg-white/5 cursor-pointer">
+                              <Checkbox checked={rulesConfirmActions.includes(opt)} onCheckedChange={(v) => setRulesConfirmActions((prev) => v ? [...prev, opt] : prev.filter((a) => a !== opt))} className="w-3 h-3" />
+                              <span className="text-[10px] font-mono text-muted-foreground">{opt}</span>
+                            </label>
+                          ))}
                         </div>
-
-                        {policy.rules && (
-                          <div className="flex flex-wrap gap-1.5 mb-2">
-                            {policy.rules.allowedTools.length > 0 && (
-                              <Badge variant="outline" className="text-[10px] border-emerald-500/30 text-emerald-400">
-                                ✓ {policy.rules.allowedTools.length} allowed
-                              </Badge>
-                            )}
-                            {policy.rules.blockedTools.length > 0 && (
-                              <Badge variant="outline" className="text-[10px] border-red-500/30 text-red-400">
-                                ✕ {policy.rules.blockedTools.length} blocked
-                              </Badge>
-                            )}
-                            {policy.rules.confirmActions.length > 0 && (
-                              <Badge variant="outline" className="text-[10px] border-amber-500/30 text-amber-400">
-                                ⚠ {policy.rules.confirmActions.length} confirm
-                              </Badge>
-                            )}
-                            {policy.rules.maxActionsPerHour !== 500 && (
-                              <Badge variant="outline" className="text-[10px] border-white/15 text-muted-foreground">
-                                {policy.rules.maxActionsPerHour.toLocaleString()}/hr
-                              </Badge>
-                            )}
-                            {policy.rules.blockAfterHours && (
-                              <Badge variant="outline" className="text-[10px] border-amber-500/20 text-amber-400/80">after hours ✕</Badge>
-                            )}
-                          </div>
-                        )}
-
-                        {policy.rules?.agentTypes && policy.rules.agentTypes.length > 0 && (
-                          <div className="flex flex-wrap gap-1 mb-2">
-                            {policy.rules.agentTypes.map((t) => (
-                              <span key={t} className="text-[9px] px-1.5 py-0.5 rounded-full border border-[#64dc78]/20 text-[#64dc78]/70">{t}</span>
-                            ))}
-                          </div>
-                        )}
-
-                        <div className="flex items-center gap-2 pt-1 border-t border-white/5 mt-2">
-                          <Button
-                            size="sm" variant="default"
-                            className="h-7 text-xs flex-1"
-                            onClick={() => { setApplyCustomPolicy(policy); setApplyCustomOpen(true); }}
-                          >
-                            Apply Pack
-                          </Button>
-                          <Button size="sm" variant="ghost" className="h-7 text-xs px-2" onClick={() => handleEditCustom(policy)}>
-                            Edit
-                          </Button>
-                          <Button size="sm" variant="ghost" className="h-7 text-xs px-2 text-red-400 hover:text-red-400 hover:bg-red-500/10" onClick={() => handleRemoveCustom(policy.id)}>
-                            Remove
-                          </Button>
-                        </div>
-
-                        <p className="text-[10px] text-muted-foreground/40 mt-1.5">
-                          Created {new Date(policy.createdAt).toLocaleDateString()}
-                        </p>
                       </div>
-                    ))
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                          <Label className="text-xs text-muted-foreground">Max actions per hour</Label>
+                          <Input type="number" value={rulesMaxActions} onChange={(e) => setRulesMaxActions(Number(e.target.value))} min={1} max={100000} className="bg-secondary/50 text-sm" />
+                        </div>
+                        <div className="flex items-end pb-1">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <Checkbox checked={rulesBlockAfterHours} onCheckedChange={(v) => setRulesBlockAfterHours(!!v)} />
+                            <span className="text-xs">Block after business hours</span>
+                          </label>
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs text-muted-foreground">Internal notes</Label>
+                        <Textarea value={customNotes} onChange={(e) => setCustomNotes(e.target.value)} placeholder="Context, compliance requirements, approval details..." className="bg-secondary/50 text-xs min-h-[60px]" />
+                      </div>
+                    </div>
                   )}
                 </div>
+
+                <div className="flex flex-wrap gap-2">
+                  <Button onClick={handleSaveCustom} disabled={customPolicies.length >= customLimit && !editingId} className="gap-2">
+                    {editingId ? 'Update Policy' : 'Create Policy'}
+                  </Button>
+                  <Button variant="ghost" onClick={() => { resetCustomForm(); setAdvancedOpen(false); }}>Cancel</Button>
+                  <span className="text-xs text-muted-foreground self-center">{remainingCustom} slot{remainingCustom !== 1 ? 's' : ''} remaining</span>
+                </div>
               </div>
-            </div>
+            )}
+
+            {/* Policies grid — 3 columns */}
+            {customPolicies.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-white/10 bg-white/[0.02] p-10 text-center">
+                <ShieldCheck className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
+                <p className="text-sm text-muted-foreground">No custom policies yet</p>
+                <p className="text-xs text-muted-foreground/60 mt-1">Click "New Policy" to create your first pack</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+                {customPolicies.map((policy) => (
+                  <div
+                    key={policy.id}
+                    className={`rounded-xl border bg-white/[0.03] p-4 flex flex-col transition-colors hover:bg-white/[0.05] ${
+                      editingId === policy.id ? 'border-primary/50 ring-1 ring-primary/30' : 'border-white/10'
+                    }`}
+                  >
+                    {/* Name + risk */}
+                    <div className="flex items-start justify-between gap-2 mb-1.5">
+                      <p className="text-sm font-semibold leading-snug flex-1">{policy.name}</p>
+                      {policy.rules?.riskLevel && (
+                        <Badge variant="outline" className={`text-[9px] shrink-0 ${getRiskColor(policy.rules.riskLevel)}`}>
+                          {policy.rules.riskLevel}
+                        </Badge>
+                      )}
+                    </div>
+
+                    {/* Description */}
+                    <p className="text-[11px] text-muted-foreground leading-relaxed mb-3 flex-1 line-clamp-3">
+                      {policy.description}
+                    </p>
+
+                    {/* Stats row */}
+                    {policy.rules && (
+                      <div className="grid grid-cols-3 gap-1.5 mb-3">
+                        <div className="rounded-md bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-1 text-center">
+                          <p className="text-xs font-bold text-emerald-400">{policy.rules.allowedTools.length}</p>
+                          <p className="text-[8px] text-emerald-400/70 uppercase tracking-wide">Allow</p>
+                        </div>
+                        <div className="rounded-md bg-red-500/10 border border-red-500/20 px-1.5 py-1 text-center">
+                          <p className="text-xs font-bold text-red-400">{policy.rules.blockedTools.length}</p>
+                          <p className="text-[8px] text-red-400/70 uppercase tracking-wide">Block</p>
+                        </div>
+                        <div className="rounded-md bg-amber-500/10 border border-amber-500/20 px-1.5 py-1 text-center">
+                          <p className="text-xs font-bold text-amber-400">{policy.rules.confirmActions.length}</p>
+                          <p className="text-[8px] text-amber-400/70 uppercase tracking-wide">Confirm</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Agent type chips */}
+                    {policy.rules?.agentTypes && policy.rules.agentTypes.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mb-3">
+                        {policy.rules.agentTypes.map((t) => (
+                          <span key={t} className="text-[9px] px-1.5 py-0.5 rounded-full border border-[#64dc78]/20 text-[#64dc78]/70">{t}</span>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Meta badges */}
+                    <div className="flex flex-wrap gap-1 mb-3">
+                      {policy.rules?.maxActionsPerHour && policy.rules.maxActionsPerHour !== 500 && (
+                        <Badge variant="outline" className="text-[9px] border-white/15 text-muted-foreground">
+                          {policy.rules.maxActionsPerHour.toLocaleString()}/hr
+                        </Badge>
+                      )}
+                      {policy.rules?.blockAfterHours && (
+                        <Badge variant="outline" className="text-[9px] border-amber-500/20 text-amber-400/80">after hrs ✕</Badge>
+                      )}
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex items-center gap-1.5 pt-2 border-t border-white/5 mt-auto">
+                      <Button size="sm" variant="default" className="h-7 text-xs flex-1"
+                        onClick={() => { setApplyCustomPolicy(policy); setApplyCustomOpen(true); }}>
+                        Apply
+                      </Button>
+                      <Button size="sm" variant="ghost" className="h-7 text-xs px-2.5" onClick={() => handleEditCustom(policy)}>
+                        Edit
+                      </Button>
+                      <Button size="sm" variant="ghost" className="h-7 text-xs px-2 text-red-400 hover:text-red-400 hover:bg-red-500/10" onClick={() => handleRemoveCustom(policy.id)}>
+                        <X className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </section>
 
         </motion.div>

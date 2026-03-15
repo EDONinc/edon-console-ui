@@ -20,7 +20,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { User, Shield, AlertTriangle, Monitor, Save, Lock } from "lucide-react";
+import { User, Shield, AlertTriangle, Monitor, Save, Lock, Sun, Moon } from "lucide-react";
 
 const TIMEZONES = [
   { value: "UTC", label: "UTC — Coordinated Universal Time" },
@@ -35,6 +35,11 @@ const TIMEZONES = [
   { value: "Australia/Sydney", label: "AEST — Australian Eastern Time" },
 ];
 
+function applyTheme(t: 'dark' | 'light') {
+  document.documentElement.classList.toggle('dark', t === 'dark');
+  document.documentElement.classList.toggle('light', t === 'light');
+}
+
 function getInitials(name: string): string {
   const parts = name.trim().split(/\s+/);
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
@@ -47,6 +52,9 @@ export default function Profile() {
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
   const [timezone, setTimezone] = useState("UTC");
+  const [theme, setTheme] = useState<'dark' | 'light'>(() =>
+    (localStorage.getItem("edon_theme") as 'dark' | 'light') || 'dark'
+  );
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -65,6 +73,8 @@ export default function Profile() {
     await new Promise((r) => setTimeout(r, 400));
     localStorage.setItem("edon_display_name", displayName.trim());
     localStorage.setItem("edon_timezone", timezone);
+    localStorage.setItem("edon_theme", theme);
+    applyTheme(theme);
     setSaving(false);
     toast({ title: "Profile saved", description: "Your changes have been saved." });
   };
@@ -189,6 +199,27 @@ export default function Profile() {
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Appearance</Label>
+                <div className="flex gap-2">
+                  {(['dark', 'light'] as const).map((t) => (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => { setTheme(t); applyTheme(t); }}
+                      className={`flex flex-1 items-center justify-center gap-2 rounded-lg border py-2 text-sm font-medium transition-colors ${
+                        theme === t
+                          ? 'border-primary/50 bg-primary/10 text-primary'
+                          : 'border-white/10 bg-white/5 text-muted-foreground hover:bg-white/10'
+                      }`}
+                    >
+                      {t === 'dark' ? <Moon className="w-3.5 h-3.5" /> : <Sun className="w-3.5 h-3.5" />}
+                      {t === 'dark' ? 'Dark' : 'Light'}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               <div className="pt-1">

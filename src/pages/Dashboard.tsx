@@ -253,9 +253,9 @@ export default function Dashboard() {
           />
           <StatCard
             title="Latency p50"
-            value={metrics?.latency_p50 != null ? `${metrics.latency_p50}ms` : "—"}
+            value={metrics?.latency_p50 ? `${metrics.latency_p50}ms` : "—"}
             icon={Timer}
-            change={metrics?.latency_p95 != null && metrics.latency_p95 > 0 ? `p95: ${metrics.latency_p95}ms, p99: ${metrics.latency_p99 ?? 0}ms` : undefined}
+            change={metrics?.latency_p95 && metrics.latency_p95 > 0 ? `p95: ${metrics.latency_p95}ms${metrics.latency_p99 ? `, p99: ${metrics.latency_p99}ms` : ''}` : undefined}
             changeType="neutral"
             variant="default"
             delay={3}

@@ -1055,7 +1055,7 @@ export default function Settings() {
                 </div>
                 <ol className="space-y-2.5">
                   {[
-                    "Your agent calls EDON's /clawdbot/invoke with {tool, action, args}",
+                    "Your agent calls EDON's /agent/invoke with {tool, action, args}",
                     "EDON applies governance policy → ALLOW or BLOCK",
                     "On ALLOW, EDON calls your backend's /tools/invoke and returns the response",
                     "Your backend receives: {tool, action, args} with Authorization: Bearer <your-token>",
