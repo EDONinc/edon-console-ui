@@ -1,6 +1,6 @@
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ShieldCheck, Gauge, ListChecks, FileSearch, Settings2, KeyRound, LogOut, User, CreditCard, Users, Key, ChevronDown } from 'lucide-react';
+import { ShieldCheck, Gauge, ListChecks, FileSearch, Settings2, KeyRound, LogOut, User, CreditCard, Users, Key, ChevronDown, Bot } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { edonApi } from '@/lib/api';
 import { Badge } from '@/components/ui/badge';
@@ -17,6 +17,7 @@ const navItems = [
   { to: '/', label: 'Dashboard', icon: Gauge },
   { to: '/decisions', label: 'Decisions', icon: ListChecks },
   { to: '/audit', label: 'Audit', icon: FileSearch },
+  { to: '/agents', label: 'Agents', icon: Bot },
   { to: '/policies', label: 'Policies', icon: ShieldCheck },
   { to: '/settings', label: 'Settings', icon: Settings2 },
 ];

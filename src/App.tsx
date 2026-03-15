@@ -11,6 +11,7 @@ import { edonApi } from "@/lib/api";
 import Dashboard from "./pages/Dashboard";
 import Decisions from "./pages/Decisions";
 import Audit from "./pages/Audit";
+import Agents from "./pages/Agents";
 import Policies from "./pages/Policies";
 import Settings from "./pages/Settings";
 import Quickstart from "./pages/Quickstart";
@@ -69,6 +70,7 @@ const AppRoutes = () => {
       <Route path="/" element={<Dashboard />} />
       <Route path="/decisions" element={<Decisions />} />
       <Route path="/audit" element={<Audit />} />
+      <Route path="/agents" element={<Agents />} />
       <Route path="/policies" element={<Policies />} />
       <Route path="/settings" element={<Settings />} />
       <Route path="/quickstart" element={<Quickstart />} />

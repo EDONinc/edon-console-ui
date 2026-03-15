@@ -712,6 +712,95 @@ class EdonApiClient {
       return null;
     }
   }
+
+  // Agent Fleet Management
+
+  async listAgents(params?: { status?: string; agent_type?: string }) {
+    const searchParams = new URLSearchParams();
+    if (params?.status) searchParams.set('status', params.status);
+    if (params?.agent_type) searchParams.set('agent_type', params.agent_type);
+    const query = searchParams.toString();
+    try {
+      return await this.request<{ agents: AgentProfile[]; total: number }>(
+        `/agents${query ? `?${query}` : ''}`
+      );
+    } catch {
+      return null;
+    }
+  }
+
+  async registerAgent(data: {
+    agent_id: string;
+    name: string;
+    agent_type: string;
+    description?: string;
+    capabilities?: string[];
+    policy_pack?: string;
+    mag_enabled?: boolean;
+    metadata?: Record<string, unknown>;
+  }) {
+    return this.request<AgentProfile>('/agents/register', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getAgent(agentId: string) {
+    try {
+      return await this.request<AgentProfile>(`/agents/${agentId}`);
+    } catch {
+      return null;
+    }
+  }
+
+  async getAgentTimeline(
+    agentId: string,
+    params?: { limit?: number; offset?: number; verdict?: string; days?: number }
+  ) {
+    const searchParams = new URLSearchParams();
+    if (params?.limit) searchParams.set('limit', params.limit.toString());
+    if (params?.offset) searchParams.set('offset', params.offset.toString());
+    if (params?.verdict) searchParams.set('verdict', params.verdict);
+    if (params?.days) searchParams.set('days', params.days.toString());
+    const query = searchParams.toString();
+    try {
+      return await this.request<{ events: AgentTimelineEvent[]; total: number }>(
+        `/agents/${agentId}/timeline${query ? `?${query}` : ''}`
+      );
+    } catch {
+      return null;
+    }
+  }
+
+  async getAgentStats(agentId: string) {
+    try {
+      return await this.request<AgentStatsTimeSeries>(`/agents/${agentId}/stats`);
+    } catch {
+      return null;
+    }
+  }
+
+  async updateAgentStatus(agentId: string, status: 'active' | 'paused' | 'retired') {
+    return this.request<{ success: boolean; agent_id: string; status: string }>(
+      `/agents/${agentId}/status`,
+      {
+        method: 'PUT',
+        body: JSON.stringify({ status }),
+      }
+    );
+  }
+
+  async getAgentAnomalies() {
+    try {
+      return await this.request<{
+        flagged_agents: Array<{ agent_id: string; reason?: string; block_rate_7d?: number }>;
+        total_flagged: number;
+        scanned_at: string;
+      }>('/agents/anomalies');
+    } catch {
+      return null;
+    }
+  }
 }
 
 // Types
@@ -754,3 +843,45 @@ export interface AlertPreferences {
 
 export const edonApi = new EdonApiClient();
 export { getBaseUrl, getToken, getAgentId, isMockMode };
+
+export interface AgentProfile {
+  agent_id: string;
+  name: string;
+  agent_type: string;
+  description: string;
+  capabilities: string[];
+  policy_pack: string;
+  status: 'active' | 'paused' | 'retired';
+  registered_at: string;
+  last_seen_at: string | null;
+  metadata: Record<string, unknown>;
+  mag_enabled?: boolean;
+  stats: {
+    total_actions: number;
+    allow_count: number;
+    block_count: number;
+    block_rate: number;
+    allow_rate: number;
+    last_action_at: string | null;
+  };
+  trend_7d?: Array<{ date: string; count: number }>;
+  top_tools?: Array<{ tool: string; count: number }>;
+  top_block_reasons?: Array<{ reason_code: string; count: number }>;
+  behavioral_cav_state?: { block_rate_7d: number; allow_rate_7d: number };
+}
+
+export interface AgentTimelineEvent {
+  id: string;
+  timestamp: string;
+  action_type?: string;
+  tool?: string;
+  op?: string;
+  verdict: string;
+  reason_code?: string;
+  latency_ms?: number;
+  explanation?: string;
+}
+
+export interface AgentStatsTimeSeries {
+  days: Array<{ date: string; allow: number; block: number; confirm: number }>;
+}
